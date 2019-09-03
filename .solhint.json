@@ -1,0 +1,14 @@
+{
+    "extends": "default",
+    "rules": {
+        "avoid-throw": false,
+        "avoid-suicide": "error",
+        "avoid-sha3": "warn",
+        "not-rely-on-time": false,
+        "no-empty-blocks": false,
+        "indent": [
+            "warn",
+            4
+        ]
+    }
+}
