@@ -15,7 +15,7 @@ trap cleanup EXIT
 if ganache_running $port; then
   echo "Using existing ganache instance"
 else
-  echo "Starting our own ganache instance with $accounts users and default balance of $balance ETH"
+  echo "Starting our own ganache instance with $accounts users with default balance of $balance ETH"
 
   if [ "$SOLIDITY_COVERAGE" = true ]; then
     ./node_modules/.bin/testrpc-sc -l 0xfffffffffff -a $accounts -e $balance -p "$port" > ganache.log &
