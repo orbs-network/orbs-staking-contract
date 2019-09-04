@@ -3,6 +3,7 @@ pragma solidity 0.4.26;
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
+import "./IStakeChangeNotifier.sol";
 
 // @title Orbs staking smart contract.
 contract StakingContract {
@@ -19,6 +20,9 @@ contract StakingContract {
 
     // The address responsible for starting emergency processes and gracefully handling unstaking operations.
     address public emergencyManager;
+
+    // The address of the contract responsible for notifying of stake change events.
+    IStakeChangeNotifier public notifier;
 
     // The address of the ORBS token.
     IERC20 public token;
@@ -52,5 +56,15 @@ contract StakingContract {
         migrationManager = _migrationManager;
         emergencyManager = _emergencyManager;
         token = _token;
+    }
+
+    /// @dev Sets the stake change notifier contract.
+    /// @param _newNotifier IStakeChangeNotifier The address of the new stake change notifier contract.
+    ///
+    /// Note: it's allowed to reset the notifier to a zero address.
+    function setStakeChangeNotifier(IStakeChangeNotifier _newNotifier) external onlyMigrationManager {
+        require(notifier != _newNotifier, "StakingContract::setStakeChangeNotifier - new address must be different");
+
+        notifier = _newNotifier;
     }
 }

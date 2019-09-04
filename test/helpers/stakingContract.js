@@ -32,6 +32,14 @@ class StakingContract {
     return this.staking.cooldownPeriod.call();
   }
 
+  async getStakeChangeNotifier() {
+    return this.staking.notifier.call();
+  }
+
+  async setStakeChangeNotifier(notifier, options = {}) {
+    return this.staking.setStakeChangeNotifier(notifier, options);
+  }
+
   async getMigrationManager() {
     return this.staking.migrationManager.call();
   }
