@@ -5,6 +5,7 @@ require('babel-polyfill');
 require('chai')
   .use(require('chai-as-promised'))
   .use(require('chai-bn')(require('bn.js')))
+  .use(require('chai-change'))
   .use(require('dirty-chai'))
   .expect();
 /* eslint-enable import/no-extraneous-dependencies */
