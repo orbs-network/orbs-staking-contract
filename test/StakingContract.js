@@ -92,7 +92,7 @@ contract('StakingContract', (accounts) => {
           from: constants.ZERO_ADDRESS, to: newNotifier,
         });
 
-        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: newNotifier });
+        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { newNotifier });
       });
 
       context('already set', async () => {
@@ -108,7 +108,7 @@ contract('StakingContract', (accounts) => {
             from: newNotifier, to: constants.ZERO_ADDRESS,
           });
 
-          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: constants.ZERO_ADDRESS });
+          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { newNotifier: constants.ZERO_ADDRESS });
         });
 
         it('should not allow to change to the same address', async () => {

@@ -27,7 +27,7 @@ contract StakingContract {
     // The address of the ORBS token.
     IERC20 public token;
 
-    event StakeChangeNotifierUpdated(address indexed notifier);
+    event StakeChangeNotifierUpdated(address indexed newNotifier);
 
     modifier onlyMigrationManager() {
         require(msg.sender == migrationManager, "StakingContract: caller is not the migration manager");
