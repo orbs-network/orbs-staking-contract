@@ -1,5 +1,5 @@
 import chai from 'chai';
-import { BN, expectRevert, constants } from 'openzeppelin-test-helpers';
+import { BN, expectRevert, expectEvent, constants } from 'openzeppelin-test-helpers';
 import StakingContract from './helpers/stakingContract';
 
 const { expect } = chai;
@@ -8,6 +8,10 @@ const VERSION = new BN(1);
 
 const SECOND = new BN(1);
 const MINUTE = SECOND.mul(new BN(60));
+
+const EVENTS = {
+  stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
+};
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
 
@@ -81,10 +85,14 @@ contract('StakingContract', (accounts) => {
       const sender = migrationManager;
 
       it('should set to a new address', async () => {
-        await expect(async () => staking.setStakeChangeNotifier(newNotifier, { from: sender }))
-          .to.alter(async () => staking.getStakeChangeNotifier(), {
-            from: constants.ZERO_ADDRESS, to: newNotifier,
-          });
+        let tx;
+        await expect(async () => {
+          tx = await staking.setStakeChangeNotifier(newNotifier, { from: sender });
+        }).to.alter(async () => staking.getStakeChangeNotifier(), {
+          from: constants.ZERO_ADDRESS, to: newNotifier,
+        });
+
+        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: newNotifier });
       });
 
       context('already set', async () => {
@@ -93,12 +101,14 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow to reset to 0', async () => {
-          const newNotifier2 = accounts[4];
+          let tx;
+          await expect(async () => {
+            tx = await staking.setStakeChangeNotifier(constants.ZERO_ADDRESS, { from: sender });
+          }).to.alter(async () => staking.getStakeChangeNotifier(), {
+            from: newNotifier, to: constants.ZERO_ADDRESS,
+          });
 
-          await expect(async () => staking.setStakeChangeNotifier(newNotifier2, { from: sender }))
-            .to.alter(async () => staking.getStakeChangeNotifier(), {
-              from: newNotifier, to: newNotifier2,
-            });
+          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: constants.ZERO_ADDRESS });
         });
 
         it('should not allow to change to the same address', async () => {
