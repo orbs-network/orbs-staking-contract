@@ -18,7 +18,13 @@
         ],
         "space-before-function-paren": "error",
         "no-continue": "off",
-        "arrow-body-style": "off"
+        "arrow-body-style": "off",
+        "object-curly-newline": [
+            "error",
+            {
+                "ImportDeclaration": "never",
+            }
+        ],
     },
     "globals": {
         "assert": true,
