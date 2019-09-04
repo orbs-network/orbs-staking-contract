@@ -1,21 +1,23 @@
 const TruffleStakingContract = artifacts.require('../../contracts/StakingContract.sol');
 
 class StakingContract {
-  constructor(migrationManager, emergencyManager, token) {
+  constructor(cooldownPeriod, migrationManager, emergencyManager, token) {
+    this.cooldownPeriod = cooldownPeriod;
     this.migrationManager = migrationManager;
     this.emergencyManager = emergencyManager;
     this.token = token;
   }
 
-  static async new(migrationManager, emergencyManager, token) {
-    const staking = new StakingContract(migrationManager, emergencyManager, token);
+  static async new(cooldownPeriod, migrationManager, emergencyManager, token) {
+    const staking = new StakingContract(cooldownPeriod, migrationManager, emergencyManager, token);
     await staking.deploy();
 
     return staking;
   }
 
   async deploy() {
-    this.staking = await TruffleStakingContract.new(this.migrationManager, this.emergencyManager, this.token);
+    this.staking = await TruffleStakingContract.new(this.cooldownPeriod, this.migrationManager, this.emergencyManager,
+      this.token);
   }
 
   getAddress() {
@@ -24,6 +26,10 @@ class StakingContract {
 
   async getVersion() {
     return this.staking.VERSION.call();
+  }
+
+  async getCooldownPeriod() {
+    return this.staking.cooldownPeriod.call();
   }
 
   async getMigrationManager() {
