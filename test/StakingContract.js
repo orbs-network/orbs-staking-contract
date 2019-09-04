@@ -10,6 +10,8 @@ const SECOND = new BN(1);
 const MINUTE = SECOND.mul(new BN(60));
 
 const EVENTS = {
+  migrationManagerUpdated: 'MigrationManagerUpdated',
+  emergencyManagerUpdated: 'EmergencyManagerUpdated',
   stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
 };
 
@@ -63,7 +65,95 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('setting of stake change notifier', async () => {
+  describe('setting the migration manager', async () => {
+    const newMigrationManager = accounts[3];
+
+    let staking;
+    beforeEach(async () => {
+      const cooldown = MINUTE.mul(new BN(5));
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+    });
+
+    context('regular account', async () => {
+      const sender = accounts[1];
+
+      it('should not allow to set', async () => {
+        await expectRevert(staking.setMigrationManager(newMigrationManager, { from: sender }),
+          'StakingContract: caller is not the migration manager');
+      });
+    });
+
+    context('migration manager', async () => {
+      const sender = migrationManager;
+
+      it('should set to a new address', async () => {
+        let tx;
+        await expect(async () => {
+          tx = await staking.setMigrationManager(newMigrationManager, { from: sender });
+        }).to.alter(async () => staking.getMigrationManager(), {
+          from: migrationManager, to: newMigrationManager,
+        });
+
+        expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { newMigrationManager });
+      });
+
+      it('should not allow to change to 0', async () => {
+        await expectRevert(staking.setMigrationManager(constants.ZERO_ADDRESS, { from: sender }),
+          'StakingContract::setMigrationManager - address must not be 0');
+      });
+
+      it('should not allow to change to the same address', async () => {
+        await expectRevert(staking.setMigrationManager(migrationManager, { from: sender }),
+          'StakingContract::setMigrationManager - new address must be different');
+      });
+    });
+  });
+
+  describe('setting the emergency manager', async () => {
+    const newEmergencyManager = accounts[3];
+
+    let staking;
+    beforeEach(async () => {
+      const cooldown = MINUTE.mul(new BN(5));
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+    });
+
+    context('regular account', async () => {
+      const sender = accounts[1];
+
+      it('should not allow to set', async () => {
+        await expectRevert(staking.setEmergencyManager(newEmergencyManager, { from: sender }),
+          'StakingContract: caller is not the emergency manager');
+      });
+    });
+
+    context('emergency manager', async () => {
+      const sender = emergencyManager;
+
+      it('should set to a new address', async () => {
+        let tx;
+        await expect(async () => {
+          tx = await staking.setEmergencyManager(newEmergencyManager, { from: sender });
+        }).to.alter(async () => staking.getEmergencyManager(), {
+          from: emergencyManager, to: newEmergencyManager,
+        });
+
+        expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { newEmergencyManager });
+      });
+
+      it('should not allow to change to 0', async () => {
+        await expectRevert(staking.setEmergencyManager(constants.ZERO_ADDRESS, { from: sender }),
+          'StakingContract::setEmergencyManager - address must not be 0');
+      });
+
+      it('should not allow to change to the same address', async () => {
+        await expectRevert(staking.setEmergencyManager(emergencyManager, { from: sender }),
+          'StakingContract::setEmergencyManager - new address must be different');
+      });
+    });
+  });
+
+  describe('setting the stake change notifier', async () => {
     const newNotifier = accounts[3];
 
     let staking;

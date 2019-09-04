@@ -27,6 +27,8 @@ contract StakingContract {
     // The address of the ORBS token.
     IERC20 public token;
 
+    event MigrationManagerUpdated(address indexed newMigrationManager);
+    event EmergencyManagerUpdated(address indexed newEmergencyManager);
     event StakeChangeNotifierUpdated(address indexed newNotifier);
 
     modifier onlyMigrationManager() {
@@ -58,6 +60,30 @@ contract StakingContract {
         migrationManager = _migrationManager;
         emergencyManager = _emergencyManager;
         token = _token;
+    }
+
+    /// @dev Sets the address of the migration manager.
+    /// @param _newMigrationManager address The address of the new migration manager.
+    function setMigrationManager(address _newMigrationManager) external onlyMigrationManager {
+        require(_newMigrationManager != address(0), "StakingContract::setMigrationManager - address must not be 0");
+        require(migrationManager != _newMigrationManager,
+            "StakingContract::setMigrationManager - new address must be different");
+
+        migrationManager = _newMigrationManager;
+
+        emit MigrationManagerUpdated(migrationManager);
+    }
+
+    /// @dev Sets the address of the emergency manager.
+    /// @param _newEmergencyManager address The address of the new emergency manager.
+    function setEmergencyManager(address _newEmergencyManager) external onlyEmergencyManager {
+        require(_newEmergencyManager != address(0), "StakingContract::setEmergencyManager - address must not be 0");
+        require(emergencyManager != _newEmergencyManager,
+            "StakingContract::setEmergencyManager - new address must be different");
+
+        emergencyManager = _newEmergencyManager;
+
+        emit EmergencyManagerUpdated(emergencyManager);
     }
 
     /// @dev Sets the stake change notifier contract.

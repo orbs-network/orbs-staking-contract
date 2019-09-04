@@ -36,6 +36,14 @@ class StakingContract {
     return this.staking.notifier.call();
   }
 
+  async setMigrationManager(manager, options = {}) {
+    return this.staking.setMigrationManager(manager, options);
+  }
+
+  async setEmergencyManager(manager, options = {}) {
+    return this.staking.setEmergencyManager(manager, options);
+  }
+
   async setStakeChangeNotifier(notifier, options = {}) {
     return this.staking.setStakeChangeNotifier(notifier, options);
   }
