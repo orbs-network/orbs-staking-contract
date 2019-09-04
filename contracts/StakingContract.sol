@@ -42,7 +42,6 @@ contract StakingContract {
     /// @param _emergencyManager address The address responsible for starting emergency processes and gracefully
     ///     handling unstaking operations.
     /// @param _token IERC20 The address of the Orbs token.
-
     constructor(uint256 _cooldownPeriod, address _migrationManager, address _emergencyManager, IERC20 _token) public {
         require(_cooldownPeriod > 0, "StakingContract::ctor - cooldown period must be greater than 0");
         require(_migrationManager != address(0), "StakingContract::ctor - migration manager must not be 0");
