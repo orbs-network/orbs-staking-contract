@@ -2,10 +2,9 @@ pragma solidity 0.4.26;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
-
 contract TestERC20 is ERC20 {
-    bool failApprove;
-    bool failTransfer;
+    bool public failApprove;
+    bool public failTransfer;
 
     function setFailure(bool _failApprove, bool _failTransfer) public {
         failApprove = _failApprove;

@@ -162,9 +162,12 @@ contract StakingContract is IStakingContract {
 
         // In order to handle the case when the stakeChange method reverts, we will invoke it using EVM call and check
         // its returned value.
+
+        // solhint-disable avoid-low-level-calls
         if (!address(notifier).call(abi.encodeWithSelector(notifier.stakeChange.selector, _stakeOwner))) {
             emit StakeChangeNotificationFailed(notifier);
         }
+        // solhint-enable avoid-low-level-calls
     }
 
     /// @dev Returns an index of an existing approved staking contract.
