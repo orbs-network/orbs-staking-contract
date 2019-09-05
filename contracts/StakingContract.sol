@@ -172,7 +172,7 @@ contract StakingContract is IStakingContract {
 
     /// @dev Returns an index of an existing approved staking contract.
     /// @param _stakingContract IStakingContract The staking contract to look for.
-    function findApprovedStakingContractIndex(IStakingContract _stakingContract) private view returns(uint, bool) {
+    function findApprovedStakingContractIndex(IStakingContract _stakingContract) private view returns (uint, bool) {
         uint length = approvedStakingContracts.length;
         uint i;
         for (i = 0; i < length; ++i) {
