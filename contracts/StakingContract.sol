@@ -30,6 +30,7 @@ contract StakingContract {
     event MigrationManagerUpdated(address indexed newMigrationManager);
     event EmergencyManagerUpdated(address indexed newEmergencyManager);
     event StakeChangeNotifierUpdated(address indexed newNotifier);
+    event StakeChangeNotificationFailed(address indexed notifier);
 
     modifier onlyMigrationManager() {
         require(msg.sender == migrationManager, "StakingContract: caller is not the migration manager");
@@ -96,5 +97,19 @@ contract StakingContract {
         notifier = _newNotifier;
 
         emit StakeChangeNotifierUpdated(notifier);
+    }
+
+    /// @dev Notifies of stake change event.
+    /// @param _stakeOwner address The address of the subject stake owner.
+    function notifyStakeChange(address _stakeOwner) internal {
+        if (notifier == address(0)) {
+            return;
+        }
+
+        // In order to handle the case when the stakeChange method reverts, we will invoke it using EVM call and check
+        // its returned value.
+        if (!address(notifier).call(abi.encodeWithSelector(notifier.stakeChange.selector, _stakeOwner))) {
+            emit StakeChangeNotificationFailed(notifier);
+        }
     }
 }

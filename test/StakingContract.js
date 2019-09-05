@@ -13,9 +13,11 @@ const EVENTS = {
   migrationManagerUpdated: 'MigrationManagerUpdated',
   emergencyManagerUpdated: 'EmergencyManagerUpdated',
   stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
+  stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
 };
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
+const StakeChangeNotifierMock = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
 
 contract('StakingContract', (accounts) => {
   const migrationManager = accounts[8];
@@ -204,6 +206,65 @@ contract('StakingContract', (accounts) => {
         it('should not allow to change to the same address', async () => {
           await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
             'StakingContract::setStakeChangeNotifier - new address must be different');
+        });
+      });
+    });
+  });
+
+  describe('stake change notification', async () => {
+    const stakeOwner = accounts[6];
+
+    let staking;
+    beforeEach(async () => {
+      const cooldown = MINUTE.mul(new BN(5));
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+    });
+
+    context('no notifier', async () => {
+      it('should succeed', async () => {
+        const tx = await staking.notifyStakeChange(stakeOwner);
+        expect(tx.logs).to.be.empty();
+      });
+    });
+
+    context('EOA notifier', async () => {
+      const notifier = accounts[1];
+      beforeEach(async () => {
+        await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+      });
+
+      it('should emit a failing event', async () => {
+        const tx = await staking.notifyStakeChange(stakeOwner);
+        expect(tx.logs).to.be.empty();
+      });
+    });
+
+    context('contract notifier', async () => {
+      let notifier;
+      beforeEach(async () => {
+        notifier = await StakeChangeNotifierMock.new();
+        await staking.setStakeChangeNotifier(notifier.address, { from: migrationManager });
+      });
+
+      it('should succeed', async () => {
+        await expect(async () => staking.notifyStakeChange(stakeOwner))
+          .to.alter(async () => notifier.calledWith.call(), {
+            from: constants.ZERO_ADDRESS, to: stakeOwner,
+          });
+      });
+
+      context('reverting', async () => {
+        beforeEach(async () => {
+          await notifier.setRevert(true);
+        });
+
+        it('should handle revert and emit a failing event', async () => {
+          let tx;
+          await expect(async () => {
+            tx = await staking.notifyStakeChange(stakeOwner);
+          }).not.to.alter(async () => notifier.calledWith.call());
+
+          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.address });
         });
       });
     });

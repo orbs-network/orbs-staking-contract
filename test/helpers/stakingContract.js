@@ -1,4 +1,4 @@
-const TruffleStakingContract = artifacts.require('../../contracts/StakingContract.sol');
+const StakingContractWrapper = artifacts.require('../../contracts/tests/StakingContractWrapper.sol');
 
 class StakingContract {
   constructor(cooldownPeriod, migrationManager, emergencyManager, token) {
@@ -16,7 +16,7 @@ class StakingContract {
   }
 
   async deploy() {
-    this.staking = await TruffleStakingContract.new(this.cooldownPeriod, this.migrationManager, this.emergencyManager,
+    this.staking = await StakingContractWrapper.new(this.cooldownPeriod, this.migrationManager, this.emergencyManager,
       this.token);
   }
 
@@ -58,6 +58,10 @@ class StakingContract {
 
   async getToken() {
     return this.staking.token.call();
+  }
+
+  async notifyStakeChange(stakeOwner) {
+    return this.staking.notify(stakeOwner);
   }
 }
 
