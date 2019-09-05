@@ -16,7 +16,6 @@
     ],
     "scripts": {
         "test": "scripts/test.sh",
-        "fulltest": "scripts/test.sh",
         "coverage": "scripts/coverage.sh",
         "profile": "WITH_GAS_PROFILER=true scripts/test.sh",
         "compile": "./node_modules/.bin/truffle compile"
