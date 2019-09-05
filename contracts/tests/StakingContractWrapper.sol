@@ -12,4 +12,8 @@ contract StakingContractWrapper is StakingContract {
     function notify(address _stakeOwner) public {
         super.notifyStakeChange(_stakeOwner);
     }
+
+    function getApprovedStakingContractsLength() public view returns(uint256) {
+        return approvedStakingContracts.length;
+    }
 }

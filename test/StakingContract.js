@@ -5,12 +5,15 @@ import StakingContract from './helpers/stakingContract';
 const { expect } = chai;
 
 const VERSION = new BN(1);
+const MAX_APPROVED_STAKING_CONTRACTS = 10;
 
 const SECOND = new BN(1);
 const MINUTE = SECOND.mul(new BN(60));
 
 const EVENTS = {
   migrationManagerUpdated: 'MigrationManagerUpdated',
+  migrationDestinationAdded: 'MigrationDestinationAdded',
+  migrationDestinationRemoved: 'MigrationDestinationRemoved',
   emergencyManagerUpdated: 'EmergencyManagerUpdated',
   stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
   stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
@@ -266,6 +269,126 @@ contract('StakingContract', (accounts) => {
 
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.address });
         });
+      });
+    });
+  });
+
+  describe('management migration destinations', async () => {
+    const migrationDestinations = accounts.slice(0, MAX_APPROVED_STAKING_CONTRACTS);
+
+    let staking;
+    beforeEach(async () => {
+      const cooldown = MINUTE.mul(new BN(5));
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+    });
+
+    context('regular account', async () => {
+      const sender = accounts[1];
+      const destination = migrationDestinations[0];
+
+      it('should not allow to add a new contract', async () => {
+        await expectRevert(staking.addMigrationDestination(destination, { from: sender }),
+          'StakingContract: caller is not the migration manager');
+      });
+
+      it('should not allow to remove any contract', async () => {
+        await expectRevert(staking.addMigrationDestination(destination, { from: sender }),
+          'StakingContract: caller is not the migration manager');
+      });
+    });
+
+    context('migration manager', async () => {
+      const sender = migrationManager;
+
+      it('should add new staking contracts', async () => {
+        for (const destination of migrationDestinations) {
+          let tx;
+          await expect(async () => {
+            tx = await staking.addMigrationDestination(destination, { from: sender });
+          }).to.alter(async () => staking.isApprovedStakingContract(destination), {
+            from: false, to: true,
+          });
+
+          expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationAdded, { stakingContract: destination });
+        }
+
+        expect(await staking.getApprovedStakingContracts()).to.have.members(migrationDestinations);
+      });
+
+      it('should not allow to add a 0 address', async () => {
+        await expectRevert(staking.addMigrationDestination(constants.ZERO_ADDRESS, { from: sender }),
+          'StakingContract::addMigrationDestination - address must not be 0');
+      });
+
+      it('should not allow to add a duplicate contract', async () => {
+        const destination = migrationDestinations[0];
+
+        await staking.addMigrationDestination(destination, { from: sender });
+        await expectRevert(staking.addMigrationDestination(destination, { from: sender }),
+          "StakingContract::addMigrationDestination - can't add a duplicate staking contract");
+      });
+
+      it(`should not allow to add more than ${MAX_APPROVED_STAKING_CONTRACTS} contracts`, async () => {
+        for (const destination of migrationDestinations) {
+          await staking.addMigrationDestination(destination, { from: sender });
+        }
+
+        expect(await staking.getApprovedStakingContracts()).to.have.lengthOf(MAX_APPROVED_STAKING_CONTRACTS);
+
+        await expectRevert(staking.addMigrationDestination(accounts[20], { from: sender }),
+          "StakingContract::addMigrationDestination - can't add more staking contracts");
+      });
+
+      it('should not allow to add again a previously removed contract', async () => {
+        const destination = migrationDestinations[0];
+
+        await expect(async () => staking.addMigrationDestination(destination, { from: sender }))
+          .to.alter(async () => staking.isApprovedStakingContract(destination), {
+            from: false, to: true,
+          });
+
+        await expect(async () => staking.removeMigrationDestination(destination, { from: sender }))
+          .to.alter(async () => staking.isApprovedStakingContract(destination), {
+            from: true, to: false,
+          });
+
+        await expect(async () => staking.addMigrationDestination(destination, { from: sender }))
+          .to.alter(async () => staking.isApprovedStakingContract(destination), {
+            from: false, to: true,
+          });
+      });
+
+      it('should remove contracts', async () => {
+        for (const destination of migrationDestinations) {
+          await staking.addMigrationDestination(destination, { from: sender });
+        }
+
+        for (const destination of migrationDestinations) {
+          let tx;
+          await expect(async () => {
+            tx = await staking.removeMigrationDestination(destination, { from: sender });
+          }).to.alter(async () => staking.isApprovedStakingContract(destination), {
+            from: true, to: false,
+          });
+
+          expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationRemoved, { stakingContract: destination });
+        }
+
+        expect(await staking.getApprovedStakingContracts()).to.be.empty();
+      });
+
+      it('should not allow to add a 0 address', async () => {
+        await expectRevert(staking.removeMigrationDestination(constants.ZERO_ADDRESS, { from: sender }),
+          'StakingContract::removeMigrationDestination - address must not be 0');
+      });
+
+      it('should revert when trying to remove a non-existing contract', async () => {
+        const destination = migrationDestinations[0];
+        await staking.addMigrationDestination(destination, { from: sender });
+        expect(await staking.getApprovedStakingContracts()).to.have.members([destination]);
+
+        await expectRevert(staking.removeMigrationDestination(accounts[20], { from: sender }),
+          "StakingContract::removeMigrationDestination - staking contract doesn't exist");
       });
     });
   });

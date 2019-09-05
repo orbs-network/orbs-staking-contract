@@ -13,6 +13,9 @@ contract StakingContract is IStakingContract {
     // The version of the smart contract.
     uint public constant VERSION = 1;
 
+    // The maximum number of approved staking contracts.
+    uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
+
     // The period (in seconds) between a validator requesting to stop staking and being able to withdraw them.
     uint256 public cooldownPeriod;
 
@@ -22,6 +25,10 @@ contract StakingContract is IStakingContract {
     // The address responsible for starting emergency processes and gracefully handling unstaking operations.
     address public emergencyManager;
 
+    // A list of staking contracts which are approved by this contract. Migrating stake will be only allowed to one of
+    // these contracts.
+    IStakingContract[] public approvedStakingContracts;
+
     // The address of the contract responsible for notifying of stake change events.
     IStakeChangeNotifier public notifier;
 
@@ -29,6 +36,8 @@ contract StakingContract is IStakingContract {
     IERC20 public token;
 
     event MigrationManagerUpdated(address indexed migrationManager);
+    event MigrationDestinationAdded(address indexed stakingContract);
+    event MigrationDestinationRemoved(address indexed stakingContract);
     event EmergencyManagerUpdated(address indexed emergencyManager);
     event StakeChangeNotifierUpdated(address indexed notifier);
     event StakeChangeNotificationFailed(address indexed notifier);
@@ -100,6 +109,50 @@ contract StakingContract is IStakingContract {
         emit StakeChangeNotifierUpdated(notifier);
     }
 
+    /// @dev Adds a new contract to the list of approved staking contracts.
+    /// @param _newStakingContract IStakingContract The new contract to add.
+    function addMigrationDestination(IStakingContract _newStakingContract) external onlyMigrationManager {
+        require(_newStakingContract != address(0), "StakingContract::addMigrationDestination - address must not be 0");
+        require(approvedStakingContracts.length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
+            "StakingContract::addMigrationDestination - can't add more staking contracts");
+
+        // Check for duplicates.
+        for (uint i = 0; i < approvedStakingContracts.length; ++i) {
+            require(approvedStakingContracts[i] != _newStakingContract,
+                "StakingContract::addMigrationDestination - can't add a duplicate staking contract");
+        }
+
+        approvedStakingContracts.push(_newStakingContract);
+        emit MigrationDestinationAdded(_newStakingContract);
+    }
+
+    /// @dev Removes a contract from the list of approved staking contracts.
+    /// @param _stakingContract IStakingContract The contract to remove.
+    function removeMigrationDestination(IStakingContract _stakingContract) external onlyMigrationManager {
+        require(_stakingContract != address(0), "StakingContract::removeMigrationDestination - address must not be 0");
+
+        // Check for existence.
+        (uint i, bool exists) = findApprovedStakingContractIndex(_stakingContract);
+        require(exists, "StakingContract::removeMigrationDestination - staking contract doesn't exist");
+
+        while (i < approvedStakingContracts.length - 1) {
+            approvedStakingContracts[i] = approvedStakingContracts[i + 1];
+            i++;
+        }
+
+        delete approvedStakingContracts[i];
+        approvedStakingContracts.length--;
+
+        emit MigrationDestinationRemoved(_stakingContract);
+    }
+
+    /// @dev Returns whether a specific staking contract was approved.
+    /// @param _stakingContract IStakingContract The staking contract to look for.
+    function isApprovedStakingContract(IStakingContract _stakingContract) public view returns (bool) {
+        (, bool exists) = findApprovedStakingContractIndex(_stakingContract);
+        return exists;
+    }
+
     /// @dev Notifies of stake change event.
     /// @param _stakeOwner address The address of the subject stake owner.
     function notifyStakeChange(address _stakeOwner) internal {
@@ -112,5 +165,19 @@ contract StakingContract is IStakingContract {
         if (!address(notifier).call(abi.encodeWithSelector(notifier.stakeChange.selector, _stakeOwner))) {
             emit StakeChangeNotificationFailed(notifier);
         }
+    }
+
+    /// @dev Returns an index of an existing approved staking contract.
+    /// @param _stakingContract IStakingContract The staking contract to look for.
+    function findApprovedStakingContractIndex(IStakingContract _stakingContract) private view returns(uint, bool) {
+        uint length = approvedStakingContracts.length;
+        uint i;
+        for (i = 0; i < length; ++i) {
+            if (approvedStakingContracts[i] == _stakingContract) {
+                return (i, true);
+            }
+        }
+
+        return (i, false);
     }
 }

@@ -65,6 +65,29 @@ class StakingContract {
     return this.staking.notify(stakeOwner);
   }
 
+  async addMigrationDestination(newStakingContract, options = {}) {
+    return this.staking.addMigrationDestination(StakingContract.getAddress(newStakingContract), options);
+  }
+
+  async removeMigrationDestination(stakingContract, options = {}) {
+    return this.staking.removeMigrationDestination(StakingContract.getAddress(stakingContract), options);
+  }
+
+  async isApprovedStakingContract(stakingContract) {
+    return this.staking.isApprovedStakingContract.call(stakingContract);
+  }
+
+  async getApprovedStakingContracts() {
+    const contracts = [];
+
+    const length = (await this.staking.getApprovedStakingContractsLength.call()).toNumber();
+    for (let i = 0; i < length; ++i) {
+      contracts.push(await this.staking.approvedStakingContracts.call(i));
+    }
+
+    return contracts;
+  }
+
   static getAddress(obj) {
     return obj instanceof Object ? obj.address : obj;
   }
