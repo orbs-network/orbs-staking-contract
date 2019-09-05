@@ -5,7 +5,7 @@ import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 import "./IStakeChangeNotifier.sol";
 
-// @title Orbs staking smart contract.
+/// @title Orbs staking smart contract.
 contract StakingContract {
     using SafeMath for uint256;
 
