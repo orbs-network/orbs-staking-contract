@@ -33,5 +33,10 @@
         "artifacts": true,
         "contract": true,
         "web3": true
+    },
+    "settings": {
+        "react": {
+            "version": "999.999.999"
+        }
     }
 }
