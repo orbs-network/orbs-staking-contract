@@ -16,8 +16,9 @@ class StakingContract {
   }
 
   async deploy() {
-    this.staking = await StakingContractWrapper.new(this.cooldownPeriod, this.migrationManager, this.emergencyManager,
-      this.token);
+    this.staking = await StakingContractWrapper.new(this.cooldownPeriod,
+      StakingContract.getAddress(this.migrationManager), StakingContract.getAddress(this.emergencyManager),
+      StakingContract.getAddress(this.token));
   }
 
   getAddress() {
@@ -37,15 +38,15 @@ class StakingContract {
   }
 
   async setMigrationManager(manager, options = {}) {
-    return this.staking.setMigrationManager(manager, options);
+    return this.staking.setMigrationManager(StakingContract.getAddress(manager), options);
   }
 
   async setEmergencyManager(manager, options = {}) {
-    return this.staking.setEmergencyManager(manager, options);
+    return this.staking.setEmergencyManager(StakingContract.getAddress(manager), options);
   }
 
   async setStakeChangeNotifier(notifier, options = {}) {
-    return this.staking.setStakeChangeNotifier(notifier, options);
+    return this.staking.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
   }
 
   async getMigrationManager() {
@@ -62,6 +63,10 @@ class StakingContract {
 
   async notifyStakeChange(stakeOwner) {
     return this.staking.notify(stakeOwner);
+  }
+
+  static getAddress(obj) {
+    return obj instanceof Object ? obj.address : obj;
   }
 }
 

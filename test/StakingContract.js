@@ -30,17 +30,17 @@ contract('StakingContract', (accounts) => {
 
   describe('construction', async () => {
     it('should not allow to create with a 0 cooldown', async () => {
-      await expectRevert(StakingContract.new(new BN(0), migrationManager, emergencyManager, token.address),
+      await expectRevert(StakingContract.new(new BN(0), migrationManager, emergencyManager, token),
         'StakingContract::ctor - cooldown period must be greater than 0');
     });
 
     it('should not allow to create with a 0 migration manager', async () => {
-      await expectRevert(StakingContract.new(SECOND, constants.ZERO_ADDRESS, emergencyManager, token.address),
+      await expectRevert(StakingContract.new(SECOND, constants.ZERO_ADDRESS, emergencyManager, token),
         'StakingContract::ctor - migration manager must not be 0');
     });
 
     it('should not allow to create with a 0 emergency manager', async () => {
-      await expectRevert(StakingContract.new(SECOND, migrationManager, constants.ZERO_ADDRESS, token.address),
+      await expectRevert(StakingContract.new(SECOND, migrationManager, constants.ZERO_ADDRESS, token),
         'StakingContract::ctor - emergency manager must not be 0');
     });
 
@@ -50,14 +50,14 @@ contract('StakingContract', (accounts) => {
     });
 
     it('should report version', async () => {
-      const staking = await StakingContract.new(SECOND, migrationManager, emergencyManager, token.address);
+      const staking = await StakingContract.new(SECOND, migrationManager, emergencyManager, token);
 
       expect(await staking.getVersion()).to.be.bignumber.eq(VERSION);
     });
 
     it('should correctly initialize fields', async () => {
       const cooldown = MINUTE.mul(new BN(5));
-      const staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+      const staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
 
       expect(await staking.getCooldownPeriod()).to.be.bignumber.eq(cooldown);
       expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
@@ -73,7 +73,7 @@ contract('StakingContract', (accounts) => {
     let staking;
     beforeEach(async () => {
       const cooldown = MINUTE.mul(new BN(5));
-      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
     context('regular account', async () => {
@@ -117,7 +117,7 @@ contract('StakingContract', (accounts) => {
     let staking;
     beforeEach(async () => {
       const cooldown = MINUTE.mul(new BN(5));
-      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
     context('regular account', async () => {
@@ -161,7 +161,7 @@ contract('StakingContract', (accounts) => {
     let staking;
     beforeEach(async () => {
       const cooldown = MINUTE.mul(new BN(5));
-      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
     context('regular account', async () => {
@@ -217,7 +217,7 @@ contract('StakingContract', (accounts) => {
     let staking;
     beforeEach(async () => {
       const cooldown = MINUTE.mul(new BN(5));
-      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token.address);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
     context('no notifier', async () => {
@@ -243,7 +243,7 @@ contract('StakingContract', (accounts) => {
       let notifier;
       beforeEach(async () => {
         notifier = await StakeChangeNotifierMock.new();
-        await staking.setStakeChangeNotifier(notifier.address, { from: migrationManager });
+        await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
       });
 
       it('should succeed', async () => {
