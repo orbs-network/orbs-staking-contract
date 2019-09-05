@@ -27,9 +27,9 @@ contract StakingContract {
     // The address of the ORBS token.
     IERC20 public token;
 
-    event MigrationManagerUpdated(address indexed newMigrationManager);
-    event EmergencyManagerUpdated(address indexed newEmergencyManager);
-    event StakeChangeNotifierUpdated(address indexed newNotifier);
+    event MigrationManagerUpdated(address indexed migrationManager);
+    event EmergencyManagerUpdated(address indexed emergencyManager);
+    event StakeChangeNotifierUpdated(address indexed notifier);
     event StakeChangeNotificationFailed(address indexed notifier);
 
     modifier onlyMigrationManager() {

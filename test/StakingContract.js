@@ -96,7 +96,7 @@ contract('StakingContract', (accounts) => {
           from: migrationManager, to: newMigrationManager,
         });
 
-        expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { newMigrationManager });
+        expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { migrationManager: newMigrationManager });
       });
 
       it('should not allow to change to 0', async () => {
@@ -140,7 +140,7 @@ contract('StakingContract', (accounts) => {
           from: emergencyManager, to: newEmergencyManager,
         });
 
-        expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { newEmergencyManager });
+        expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { emergencyManager: newEmergencyManager });
       });
 
       it('should not allow to change to 0', async () => {
@@ -184,7 +184,7 @@ contract('StakingContract', (accounts) => {
           from: constants.ZERO_ADDRESS, to: newNotifier,
         });
 
-        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { newNotifier });
+        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: newNotifier });
       });
 
       context('already set', async () => {
@@ -200,7 +200,7 @@ contract('StakingContract', (accounts) => {
             from: newNotifier, to: constants.ZERO_ADDRESS,
           });
 
-          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { newNotifier: constants.ZERO_ADDRESS });
+          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: constants.ZERO_ADDRESS });
         });
 
         it('should not allow to change to the same address', async () => {
