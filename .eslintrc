@@ -25,6 +25,7 @@
                 "ImportDeclaration": "never",
             }
         ],
+        "no-loop-func": "off",
     },
     "globals": {
         "assert": true,
