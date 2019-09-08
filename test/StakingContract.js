@@ -57,6 +57,7 @@ contract('StakingContract', (accounts) => {
       expect(await staking.getMigrationManager()).to.eql(migrationManager);
       expect(await staking.getEmergencyManager()).to.eql(emergencyManager);
       expect(await staking.getToken()).to.eql(token.address);
+      expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(new BN(0));
     });
   });
 
