@@ -4,7 +4,7 @@ import "../IStakeChangeNotifier.sol";
 
 /// @title A test mockup for IStakeChangeNotifier.
 contract StakeChangeNotifierMock is IStakeChangeNotifier {
-    address public calledWith;
+    address[] public calledWith;
     bool public shouldRevert;
 
     modifier notReverting() {
@@ -18,6 +18,10 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
     }
 
     function stakeChange(address _stakerOwner) public notReverting {
-        calledWith = _stakerOwner;
+        calledWith.push(_stakerOwner);
+    }
+
+    function getCalledWithLength() external view returns (uint256) {
+        return calledWith.length;
     }
 }

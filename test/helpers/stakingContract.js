@@ -110,7 +110,15 @@ class StakingContract {
   }
 
   static getAddress(obj) {
-    return obj instanceof Object ? obj.address : obj;
+    if (obj instanceof Object) {
+      if (typeof obj.getAddress === 'function') {
+        return obj.getAddress();
+      }
+
+      return obj.address;
+    }
+
+    return obj;
   }
 
   static getEvents() {

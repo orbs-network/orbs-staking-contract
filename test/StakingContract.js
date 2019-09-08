@@ -1,6 +1,8 @@
 import chai from 'chai';
 import { BN, expectRevert, expectEvent, constants, time } from 'openzeppelin-test-helpers';
 import StakingContract from './helpers/stakingContract';
+import StakeChangeNotifier from './helpers/stakeChangeNotifier';
+import ReentrantStakeChangeNotifier from './helpers/reentrantStakeChangeNotifier';
 
 const { expect } = chai;
 const { duration } = time;
@@ -10,8 +12,6 @@ const VERSION = new BN(1);
 const MAX_APPROVED_STAKING_CONTRACTS = 10;
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
-const StakeChangeNotifier = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
-const ReentrantStakeChangeNotifier = artifacts.require('../../contracts/tests/ReentrantStakeChangeNotifierMock.sol');
 
 contract('StakingContract', (accounts) => {
   const migrationManager = accounts[8];
@@ -238,11 +238,11 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should succeed', async () => {
-        expect(await notifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+        expect(await notifier.getCalledWith()).to.be.empty();
 
         await staking.notifyStakeChange(stakeOwner);
 
-        expect(await notifier.calledWith.call()).to.eql(stakeOwner);
+        expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
       });
 
       context('reverting', async () => {
@@ -251,13 +251,13 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should handle revert and emit a failing event', async () => {
-          expect(await notifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+          expect(await notifier.getCalledWith()).to.be.empty();
 
           const tx = await staking.notifyStakeChange(stakeOwner);
 
-          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.address });
+          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.getAddress() });
 
-          expect(await notifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+          expect(await notifier.getCalledWith()).to.be.empty();
         });
       });
     });
@@ -407,7 +407,6 @@ contract('StakingContract', (accounts) => {
           const tx = await staking.stake(stake, { from: stakeOwner });
 
           expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
-          expect(await notifier.calledWith.call()).to.eql(stakeOwner);
 
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.add(stake));
           expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance.sub(stake));
@@ -417,6 +416,8 @@ contract('StakingContract', (accounts) => {
           expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
           expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.add(stake));
         }
+
+        expect(await notifier.getCalledWith()).to.have.members(specs.map((s) => s.stakeOwner));
       });
 
       describe('accept migration', async () => {
@@ -439,7 +440,7 @@ contract('StakingContract', (accounts) => {
           const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
 
           expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
-          expect(await notifier.calledWith.call()).to.eql(stakeOwner2);
+          expect(await notifier.getCalledWith()).to.have.members([stakeOwner2]);
 
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
           expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
@@ -473,20 +474,20 @@ contract('StakingContract', (accounts) => {
         context('reentrant stake change notifier', async () => {
           let reentrantNotifier;
           beforeEach(async () => {
-            reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking.getAddress(), token.address);
+            reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking, token);
             await staking.setStakeChangeNotifier(reentrantNotifier, { from: migrationManager });
           });
 
           it('should effectively stake and deduct tokens twice', async () => {
-            await token.assign(reentrantNotifier.address, stake);
-            await reentrantNotifier.approve(staking.getAddress(), stake, { from: stakeOwner });
+            await token.assign(reentrantNotifier.getAddress(), stake);
+            await reentrantNotifier.approve(staking, stake, { from: stakeOwner });
             await reentrantNotifier.setStakeData(stakeOwner2, stake);
 
             const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
 
             expect(tx.logs).to.have.length(2); // Two events for the double stake.
             expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
-            expect(await reentrantNotifier.calledWith.call()).to.eql(stakeOwner2);
+            expect(await reentrantNotifier.getCalledWith()).to.have.members([stakeOwner2, stakeOwner2]);
 
             // The operation will result in a double stake attribute to stakeOwner2:
             const effectiveStake = stake.mul(new BN(2));
@@ -496,16 +497,16 @@ contract('StakingContract', (accounts) => {
 
           context('insufficient balance for twice the stake', async () => {
             it('should stake only once', async () => {
-              await token.assign(reentrantNotifier.address, stake.sub(new BN(1)));
-              await reentrantNotifier.approve(staking.getAddress(), stake, { from: stakeOwner });
+              await token.assign(reentrantNotifier.getAddress(), stake.sub(new BN(1)));
+              await reentrantNotifier.approve(staking, stake, { from: stakeOwner });
               await reentrantNotifier.setStakeData(stakeOwner2, stake);
 
               const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
 
               expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
               expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed,
-                { notifier: reentrantNotifier.address });
-              expect(await reentrantNotifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+                { notifier: reentrantNotifier.getAddress() });
+              expect(await reentrantNotifier.getCalledWith()).to.be.empty();
 
               // The operation will result in a single stake attribute to stakeOwner2:
               expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
@@ -543,6 +544,8 @@ contract('StakingContract', (accounts) => {
             expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
             expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
           }
+
+          expect(await notifier.getCalledWith()).to.have.members(stakers);
 
           expect(await token.balanceOf(caller)).to.be.bignumber.eq(new BN(0));
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
@@ -583,6 +586,75 @@ contract('StakingContract', (accounts) => {
         it('should fail batch staking if called with empty lists', async () => {
           await expectRevert(staking.distributeBatchRewards(totalStake, [], [], { from: caller }),
             "StakingContract::distributeBatchRewards - lists can't be empty");
+        });
+
+        context('reentrant stake change notifier', async () => {
+          let reentrantNotifier;
+          beforeEach(async () => {
+            reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking, token);
+            await staking.setStakeChangeNotifier(reentrantNotifier, { from: migrationManager });
+          });
+
+          it('should effectively batch stake and deduct tokens multiple times', async () => {
+            const luckyStakerIndex = 9;
+            const luckyStaker = stakers[luckyStakerIndex];
+            const originalStake = stakes[luckyStakerIndex];
+            const luckyStake = new BN(100);
+            const additionalStake = luckyStake.mul(new BN(stakers.length));
+
+            await token.assign(reentrantNotifier.getAddress(), additionalStake);
+            await reentrantNotifier.approve(staking, additionalStake, { from: caller });
+            await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
+
+            await staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller });
+
+            // The notifier should have been called in this order:
+            //     S[0], luckyStaker, S[1], luckyStaker, ... S[19], luckyStaker
+            const zipped = stakers.reduce((res, s) => {
+              res.push(s);
+              res.push(luckyStaker);
+              return res;
+            }, []);
+            expect(await reentrantNotifier.getCalledWith()).to.have.members(zipped);
+
+            // The operation will result in an additional stake for luckyStaker (once per bathc member):
+            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(additionalStake));
+            expect(await staking.getStakeBalanceOf(luckyStaker)).to.be.bignumber.eq(originalStake.add(additionalStake));
+          });
+
+          context('insufficient balance for twice the stake', async () => {
+            it('should batch stake only once', async () => {
+              const luckyStakerIndex = 5;
+              const luckyStaker = stakers[luckyStakerIndex];
+              const originalStake = stakes[luckyStakerIndex];
+              const luckyStake = new BN(100);
+              const additionalStake = luckyStake.mul(new BN(stakers.length));
+
+              await token.assign(reentrantNotifier.getAddress(), additionalStake.sub(new BN(1)));
+              await reentrantNotifier.approve(staking, additionalStake, { from: caller });
+              await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
+
+              await staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller });
+
+              // The notifier should have been called in this order:
+              //     S[0], luckyStaker, S[1], luckyStaker, ... S[18], luckyStaker
+              const zipped = stakers.reduce((res, s) => {
+                res.push(s);
+                res.push(luckyStaker);
+                return res;
+              }, []);
+              zipped.pop();
+              zipped.pop();
+              expect(await reentrantNotifier.getCalledWith()).to.have.members(zipped);
+
+              // The operation will result in an additional stake for luckyStaker, but not including the last addition,
+              // since the rouge notifier won't have enough tokens to accomplish it.
+              const effectiveStake = additionalStake.sub(luckyStake);
+              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(effectiveStake));
+              expect(await staking.getStakeBalanceOf(luckyStaker)).to.be.bignumber
+                .eq(originalStake.add(effectiveStake));
+            });
+          });
         });
       });
     });

@@ -36,6 +36,7 @@ contract ReentrantStakeChangeNotifierMock is StakeChangeNotifierMock {
         }
 
         attacking = true;
+        super.stakeChange(_stakerOwner);
 
         staking.acceptMigration(stakeOwner, amount);
     }
