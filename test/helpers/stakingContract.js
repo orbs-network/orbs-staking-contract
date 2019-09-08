@@ -62,7 +62,7 @@ class StakingContract {
   }
 
   async notifyStakeChange(stakeOwner) {
-    return this.staking.notify(stakeOwner);
+    return this.staking.notify(StakingContract.getAddress(stakeOwner));
   }
 
   async addMigrationDestination(newStakingContract, options = {}) {
@@ -74,7 +74,7 @@ class StakingContract {
   }
 
   async isApprovedStakingContract(stakingContract) {
-    return this.staking.isApprovedStakingContract.call(stakingContract);
+    return this.staking.isApprovedStakingContract.call(StakingContract.getAddress(stakingContract));
   }
 
   async getApprovedStakingContracts() {
