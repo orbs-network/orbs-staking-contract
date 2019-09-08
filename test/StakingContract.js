@@ -83,14 +83,13 @@ contract('StakingContract', (accounts) => {
       const sender = migrationManager;
 
       it('should set to a new address', async () => {
-        let tx;
-        await expect(async () => {
-          tx = await staking.setMigrationManager(newMigrationManager, { from: sender });
-        }).to.alter(async () => staking.getMigrationManager(), {
-          from: migrationManager, to: newMigrationManager,
-        });
+        expect(await staking.getMigrationManager()).to.eql(migrationManager);
+
+        const tx = await staking.setMigrationManager(newMigrationManager, { from: sender });
 
         expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { migrationManager: newMigrationManager });
+
+        expect(await staking.getMigrationManager()).to.eql(newMigrationManager);
       });
 
       it('should not allow to change to 0', async () => {
@@ -127,14 +126,13 @@ contract('StakingContract', (accounts) => {
       const sender = emergencyManager;
 
       it('should set to a new address', async () => {
-        let tx;
-        await expect(async () => {
-          tx = await staking.setEmergencyManager(newEmergencyManager, { from: sender });
-        }).to.alter(async () => staking.getEmergencyManager(), {
-          from: emergencyManager, to: newEmergencyManager,
-        });
+        expect(await staking.getEmergencyManager()).to.eql(emergencyManager);
+
+        const tx = await staking.setEmergencyManager(newEmergencyManager, { from: sender });
 
         expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { emergencyManager: newEmergencyManager });
+
+        expect(await staking.getEmergencyManager()).to.eql(newEmergencyManager);
       });
 
       it('should not allow to change to 0', async () => {
@@ -171,14 +169,13 @@ contract('StakingContract', (accounts) => {
       const sender = migrationManager;
 
       it('should set to a new address', async () => {
-        let tx;
-        await expect(async () => {
-          tx = await staking.setStakeChangeNotifier(newNotifier, { from: sender });
-        }).to.alter(async () => staking.getStakeChangeNotifier(), {
-          from: constants.ZERO_ADDRESS, to: newNotifier,
-        });
+        expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
+
+        const tx = await staking.setStakeChangeNotifier(newNotifier, { from: sender });
 
         expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: newNotifier });
+
+        expect(await staking.getStakeChangeNotifier()).to.eql(newNotifier);
       });
 
       context('already set', async () => {
@@ -187,14 +184,13 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow to reset to 0', async () => {
-          let tx;
-          await expect(async () => {
-            tx = await staking.setStakeChangeNotifier(constants.ZERO_ADDRESS, { from: sender });
-          }).to.alter(async () => staking.getStakeChangeNotifier(), {
-            from: newNotifier, to: constants.ZERO_ADDRESS,
-          });
+          expect(await staking.getStakeChangeNotifier()).to.eql(newNotifier);
+
+          const tx = await staking.setStakeChangeNotifier(constants.ZERO_ADDRESS, { from: sender });
 
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: constants.ZERO_ADDRESS });
+
+          expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
         });
 
         it('should not allow to change to the same address', async () => {
@@ -241,10 +237,11 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should succeed', async () => {
-        await expect(async () => staking.notifyStakeChange(stakeOwner))
-          .to.alter(async () => notifier.calledWith.call(), {
-            from: constants.ZERO_ADDRESS, to: stakeOwner,
-          });
+        expect(await notifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+
+        await staking.notifyStakeChange(stakeOwner);
+
+        expect(await notifier.calledWith.call()).to.eql(stakeOwner);
       });
 
       context('reverting', async () => {
@@ -253,12 +250,13 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should handle revert and emit a failing event', async () => {
-          let tx;
-          await expect(async () => {
-            tx = await staking.notifyStakeChange(stakeOwner);
-          }).not.to.alter(async () => notifier.calledWith.call());
+          expect(await notifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+
+          const tx = await staking.notifyStakeChange(stakeOwner);
 
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.address });
+
+          expect(await notifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
         });
       });
     });
@@ -293,14 +291,13 @@ contract('StakingContract', (accounts) => {
 
       it('should add new staking contracts', async () => {
         for (const destination of migrationDestinations) {
-          let tx;
-          await expect(async () => {
-            tx = await staking.addMigrationDestination(destination, { from: sender });
-          }).to.alter(async () => staking.isApprovedStakingContract(destination), {
-            from: false, to: true,
-          });
+          expect(await staking.isApprovedStakingContract(destination)).to.be.false();
+
+          const tx = await staking.addMigrationDestination(destination, { from: sender });
 
           expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationAdded, { stakingContract: destination });
+
+          expect(await staking.isApprovedStakingContract(destination)).to.be.true();
         }
 
         expect(await staking.getApprovedStakingContracts()).to.have.members(migrationDestinations);
@@ -333,20 +330,15 @@ contract('StakingContract', (accounts) => {
       it('should not allow to add again a previously removed contract', async () => {
         const destination = migrationDestinations[0];
 
-        await expect(async () => staking.addMigrationDestination(destination, { from: sender }))
-          .to.alter(async () => staking.isApprovedStakingContract(destination), {
-            from: false, to: true,
-          });
+        expect(await staking.isApprovedStakingContract(destination)).to.be.false();
+        await staking.addMigrationDestination(destination, { from: sender });
+        expect(await staking.isApprovedStakingContract(destination)).to.be.true();
 
-        await expect(async () => staking.removeMigrationDestination(destination, { from: sender }))
-          .to.alter(async () => staking.isApprovedStakingContract(destination), {
-            from: true, to: false,
-          });
+        await staking.removeMigrationDestination(destination, { from: sender });
+        expect(await staking.isApprovedStakingContract(destination)).to.be.false();
 
-        await expect(async () => staking.addMigrationDestination(destination, { from: sender }))
-          .to.alter(async () => staking.isApprovedStakingContract(destination), {
-            from: false, to: true,
-          });
+        await staking.addMigrationDestination(destination, { from: sender });
+        expect(await staking.isApprovedStakingContract(destination)).to.be.true();
       });
 
       it('should remove contracts', async () => {
@@ -355,14 +347,13 @@ contract('StakingContract', (accounts) => {
         }
 
         for (const destination of migrationDestinations) {
-          let tx;
-          await expect(async () => {
-            tx = await staking.removeMigrationDestination(destination, { from: sender });
-          }).to.alter(async () => staking.isApprovedStakingContract(destination), {
-            from: true, to: false,
-          });
+          expect(await staking.isApprovedStakingContract(destination)).to.be.true();
+
+          const tx = await staking.removeMigrationDestination(destination, { from: sender });
 
           expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationRemoved, { stakingContract: destination });
+
+          expect(await staking.isApprovedStakingContract(destination)).to.be.false();
         }
 
         expect(await staking.getApprovedStakingContracts()).to.be.empty();
