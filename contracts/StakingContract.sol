@@ -10,11 +10,23 @@ import "./IStakeChangeNotifier.sol";
 contract StakingContract is IStakingContract {
     using SafeMath for uint256;
 
+    struct Stake {
+        uint256 amount;
+        uint256 cooldownAmount;
+        uint256 cooldownEndTime;
+    }
+
     // The version of the smart contract.
     uint public constant VERSION = 1;
 
     // The maximum number of approved staking contracts.
     uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
+
+    // The mapping between stake owners and their stake data.
+    mapping (address => Stake) public stakes;
+
+    // Total amount of staked tokens (not including unstaked tokes).
+    uint256 public totalStakedTokens;
 
     // The period (in seconds) between a validator requesting to stop staking and being able to withdraw them.
     uint256 public cooldownPeriod;
@@ -35,6 +47,8 @@ contract StakingContract is IStakingContract {
     // The address of the ORBS token.
     IERC20 public token;
 
+    event Staked(address indexed stakeOwner, uint256 amount);
+    event AcceptedMigration(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(address indexed stakingContract);
     event MigrationDestinationRemoved(address indexed stakingContract);
@@ -146,6 +160,90 @@ contract StakingContract is IStakingContract {
         emit MigrationDestinationRemoved(_stakingContract);
     }
 
+    /// @dev Stakes ORBS tokens on behalf of msg.sender.
+    /// @param _amount uint256 The amount of tokens to stake.
+    ///
+    /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
+    function stake(uint256 _amount) external {
+        address stakeOwner = msg.sender;
+
+        stake(stakeOwner, _amount);
+
+        emit Staked(stakeOwner, _amount);
+
+        // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
+        notifyStakeChange(stakeOwner);
+    }
+
+    /// @dev Stakes ORBS tokens on behalf of msg.sender.
+    /// @param _stakeOwner address The specified stake owner.
+    /// @param _amount uint256 The amount of tokens to stake.
+    ///
+    /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
+    function acceptMigration(address _stakeOwner, uint256 _amount) external {
+        stake(_stakeOwner, _amount);
+
+        emit AcceptedMigration(_stakeOwner, _amount);
+
+        // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
+        notifyStakeChange(_stakeOwner);
+    }
+
+    /// @dev Stakes ORBS tokens on behalf of a list of addresses.
+    /// @param _totalAmount uint256 The total amount of tokens to stake.
+    /// @param _stakeOwners address[ The addresses of the stake owners.
+    /// @param _amounts uint256[] The amounts of tokens to stake.
+    ///
+    /// Notes: This method assumes that the user has already approved at least the required amount using ERC20 approve.
+    /// Since this is a convenience method, we aren't concerned of reaching block gas limit by using large lists. We
+    /// assume that callers will be able to properly batch/paginate their requests.
+    function distributeBatchRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external {
+        require(_totalAmount > 0, "StakingContract::distributeBatchRewards - total amount must be greater than 0");
+
+        uint256 stakeOwnersLength = _stakeOwners.length;
+        uint256 amountsLength = _amounts.length;
+        require(stakeOwnersLength > 0 && amountsLength > 0,
+            "StakingContract::distributeBatchRewards - lists can't be empty");
+        require(stakeOwnersLength == amountsLength,
+            "StakingContract::distributeBatchRewards - lists must be of the same size");
+
+        uint i;
+
+        uint256 expectedTotalAmount;
+        for (i = 0; i < amountsLength; ++i) {
+            expectedTotalAmount = expectedTotalAmount.add(_amounts[i]);
+        }
+
+        require(_totalAmount == expectedTotalAmount, "StakingContract::distributeBatchRewards - incorrect total amount");
+
+        for (i = 0; i < stakeOwnersLength; ++i) {
+            address stakeOwner = _stakeOwners[i];
+            uint256 amount = _amounts[i];
+
+            stake(stakeOwner, amount);
+
+            emit Staked(stakeOwner, amount);
+        }
+
+        // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
+        // that any external call is made after every check and effect have took place. Unfortunately, this results in
+        // duplicated the loop.
+        for (i = 0; i < stakeOwnersLength; ++i) {
+            notifyStakeChange(_stakeOwners[i]);
+        }
+    }
+
+    /// @dev Returns the stake of the specified stake owner (excluding unstaked tokens).
+    /// @param _stakeOwner address The address to check.
+    function getStakeBalanceOf(address _stakeOwner) external view returns (uint256) {
+        return stakes[_stakeOwner].amount;
+    }
+
+    /// @dev Returns the total amount staked tokens (excluding unstaked tokens).
+    function getTotalStakedTokens() external view returns (uint256) {
+        return totalStakedTokens;
+    }
+
     /// @dev Returns whether a specific staking contract was approved.
     /// @param _stakingContract IStakingContract The staking contract to look for.
     function isApprovedStakingContract(IStakingContract _stakingContract) public view returns (bool) {
@@ -168,6 +266,25 @@ contract StakingContract is IStakingContract {
             emit StakeChangeNotificationFailed(notifier);
         }
         // solhint-enable avoid-low-level-calls
+    }
+
+    /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.
+    /// @param _stakeOwner address The specified stake owner.
+    /// @param _amount uint256 The amount of tokens to stake.
+    ///
+    /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
+    function stake(address _stakeOwner, uint256 _amount) private {
+        require(_stakeOwner != address(0), "StakingContract::stake - stake owner can't be 0");
+        require(_amount > 0, "StakingContract::stake - amount must be greater than 0");
+
+        // Transfer the tokens to the smart contract and update the stake owners list accordingly.
+        require(token.transferFrom(msg.sender, address(this), _amount),
+            "StakingContract::stake - insufficient allowance");
+
+        Stake storage stakeData = stakes[_stakeOwner];
+        stakeData.amount = stakeData.amount.add(_amount);
+
+        totalStakedTokens = totalStakedTokens.add(_amount);
     }
 
     /// @dev Returns an index of an existing approved staking contract.

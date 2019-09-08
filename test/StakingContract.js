@@ -374,4 +374,191 @@ contract('StakingContract', (accounts) => {
       });
     });
   });
+
+  describe('staking', async () => {
+    let staking;
+    beforeEach(async () => {
+      const cooldown = duration.days(1);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+    });
+
+    context('no stake', async () => {
+      it('should allow to stake', async () => {
+        const specs = [
+          { stakeOwner: accounts[0], stake: new BN(1000) },
+          { stakeOwner: accounts[1], stake: new BN(1) },
+          { stakeOwner: accounts[2], stake: new BN(10) },
+          { stakeOwner: accounts[5], stake: new BN(100000) },
+          { stakeOwner: accounts[6], stake: new BN(50) },
+        ];
+        for (const spec of specs) {
+          const { stakeOwner, stake } = spec;
+          await token.assign(stakeOwner, stake);
+          await token.approve(staking.getAddress(), stake, { from: stakeOwner });
+
+          const prevStakingBalance = await token.balanceOf(staking.getAddress());
+          const prevStakeOwnerBalance = await token.balanceOf(stakeOwner);
+          const prevTotalStakedTokens = await staking.getTotalStakedTokens();
+
+          const tx = await staking.stake(stake, { from: stakeOwner });
+
+          expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
+
+          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.add(stake));
+          expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance.sub(stake));
+          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
+          expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.add(stake));
+        }
+      });
+
+      describe('accept migration', async () => {
+        const stake = new BN(12345);
+        const stakeOwner = accounts[2];
+        const stakeOwner2 = accounts[5];
+
+        beforeEach(async () => {
+          await token.assign(stakeOwner, stake);
+          await token.approve(staking.getAddress(), stake.add(new BN(1000)), { from: stakeOwner });
+        });
+
+        it('should allow to stake on behalf of a different staker', async () => {
+          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(new BN(0));
+          expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(stake);
+          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+          expect(await token.balanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
+          expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
+
+          const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
+
+          expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
+
+          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
+          expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+          expect(await token.balanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
+          expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(stake);
+        });
+
+        it('should not allow to stake more tokens than the staker has', async () => {
+          await token.approve(staking.getAddress(), stake.add(new BN(1000)), { from: stakeOwner });
+
+          await expectRevert.unspecified(staking.acceptMigration(stakeOwner2, stake.add(new BN(1)),
+            { from: stakeOwner }));
+        });
+
+        it('should not allow to stake 0 tokens', async () => {
+          await expectRevert(staking.acceptMigration(stakeOwner2, new BN(0), { from: stakeOwner }),
+            'StakingContract::stake - amount must be greater than 0');
+        });
+
+        it('should not allow to stake more tokens than the staker has on behalf of a different staker', async () => {
+          await expectRevert.unspecified(staking.acceptMigration(stakeOwner2, stake.add(new BN(1)),
+            { from: stakeOwner }));
+        });
+
+        it('should not allow to stake on behalf of a 0 address', async () => {
+          await expectRevert(staking.acceptMigration(constants.ZERO_ADDRESS, stake, { from: stakeOwner }),
+            "StakingContract::stake - stake owner can't be 0");
+        });
+      });
+
+      describe('batch rewards', async () => {
+        const stakers = accounts.slice(0, 20);
+        const stakes = [
+          new BN(3134), new BN(5052), new BN(1445), new BN(6102), new BN(4667),
+          new BN(3522), new BN(2103), new BN(3018), new BN(6111), new BN(3070),
+          new BN(2481), new BN(5000), new BN(6105), new BN(5475), new BN(2249),
+          new BN(7615), new BN(3087), new BN(1501), new BN(620), new BN(7198),
+        ];
+        const totalStake = stakes.reduce((sum, s) => sum.add(s), new BN(0));
+        const caller = accounts[0];
+
+        beforeEach(async () => {
+          await token.assign(caller, totalStake);
+          await token.approve(staking.getAddress(), totalStake, { from: caller });
+        });
+
+        it('should allow to stake on behalf of different stakers in batch', async () => {
+          const tx = await staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller });
+
+          for (let i = 0; i < stakers.length; ++i) {
+            const stakeOwner = stakers[i];
+            const stake = stakes[i];
+
+            expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
+
+            expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+            expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
+          }
+
+          expect(await token.balanceOf(caller)).to.be.bignumber.eq(new BN(0));
+          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
+          expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+        });
+
+        it('should fail batch staking if token balance is insufficient', async () => {
+          await token.assign(caller, totalStake.sub(new BN(1)));
+          await expectRevert.unspecified(staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller }));
+        });
+
+        it('should fail batch staking if total batch amount is incorrect', async () => {
+          await expectRevert(staking.distributeBatchRewards(totalStake.add(new BN(1)), stakers, stakes,
+            { from: caller }), 'StakingContract::distributeBatchRewards - incorrect total amount');
+          await expectRevert(staking.distributeBatchRewards(totalStake.sub(new BN(1)), stakers, stakes,
+            { from: caller }), 'StakingContract::distributeBatchRewards - incorrect total amount');
+        });
+
+        it('should fail batch staking if stake owners and amounts lists are in different sizes', async () => {
+          await expectRevert(staking.distributeBatchRewards(totalStake, stakers.slice(1), stakes,
+            { from: caller }), 'StakingContract::distributeBatchRewards - lists must be of the same size');
+          await expectRevert(staking.distributeBatchRewards(totalStake.sub(stakes[0]), stakers, stakes.slice(1),
+            { from: caller }), 'StakingContract::distributeBatchRewards - lists must be of the same size');
+        });
+
+        it('should fail batch staking if total token amount is 0', async () => {
+          await expectRevert(staking.distributeBatchRewards(new BN(0), stakers, stakes, { from: caller }),
+            'StakingContract::distributeBatchRewards - total amount must be greater than 0');
+        });
+
+        it('should fail batch staking if one of the stake owners is a 0 address', async () => {
+          const stakers2 = stakers.slice(0);
+          stakers2[5] = constants.ZERO_ADDRESS;
+          await expectRevert(staking.distributeBatchRewards(totalStake, stakers2, stakes, { from: caller }),
+            "StakingContract::stake - stake owner can't be 0");
+        });
+
+        it('should fail batch staking if called with empty lists', async () => {
+          await expectRevert(staking.distributeBatchRewards(totalStake, [], [], { from: caller }),
+            "StakingContract::distributeBatchRewards - lists can't be empty");
+        });
+      });
+    });
+
+    context('with stake', async () => {
+      const stake = new BN(1000);
+      const stakeOwner = accounts[4];
+
+      beforeEach(async () => {
+        await token.assign(stakeOwner, stake);
+        await token.approve(staking.getAddress(), stake, { from: stakeOwner });
+        await staking.stake(stake, { from: stakeOwner });
+      });
+
+      it('should allow to stake more tokens', async () => {
+        const newStake = new BN(100);
+        await token.assign(stakeOwner, newStake);
+        await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
+
+        const tx = await staking.stake(newStake, { from: stakeOwner });
+
+        expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
+
+        const totalStake = stake.add(newStake);
+        expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
+        expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
+        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+      });
+    });
+  });
 });

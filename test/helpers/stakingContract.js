@@ -33,6 +33,14 @@ class StakingContract {
     return this.staking.cooldownPeriod.call();
   }
 
+  async getStakeBalanceOf(stakeOwner) {
+    return this.staking.getStakeBalanceOf.call(StakingContract.getAddress(stakeOwner));
+  }
+
+  async getTotalStakedTokens() {
+    return this.staking.getTotalStakedTokens.call();
+  }
+
   async getStakeChangeNotifier() {
     return this.staking.notifier.call();
   }
@@ -86,6 +94,19 @@ class StakingContract {
     }
 
     return contracts;
+  }
+
+  async stake(amount, options = {}) {
+    return this.staking.stake(amount, options);
+  }
+
+  async acceptMigration(stakeOwner, amount, options = {}) {
+    return this.staking.acceptMigration(StakingContract.getAddress(stakeOwner), amount, options);
+  }
+
+  async distributeBatchRewards(totalStake, stakeOwners, amounts, options = {}) {
+    return this.staking.distributeBatchRewards(totalStake, stakeOwners.map((s) => StakingContract.getAddress(s)),
+      amounts, options);
   }
 
   static getAddress(obj) {
