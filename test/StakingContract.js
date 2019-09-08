@@ -11,6 +11,7 @@ const MAX_APPROVED_STAKING_CONTRACTS = 10;
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
 const StakeChangeNotifier = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
+const ReentrantStakeChangeNotifier = artifacts.require('../../contracts/tests/ReentrantStakeChangeNotifierMock.sol');
 
 contract('StakingContract', (accounts) => {
   const migrationManager = accounts[8];
@@ -377,9 +378,12 @@ contract('StakingContract', (accounts) => {
 
   describe('staking', async () => {
     let staking;
+    let notifier;
     beforeEach(async () => {
       const cooldown = duration.days(1);
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
     context('no stake', async () => {
@@ -403,10 +407,14 @@ contract('StakingContract', (accounts) => {
           const tx = await staking.stake(stake, { from: stakeOwner });
 
           expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
+          expect(await notifier.calledWith.call()).to.eql(stakeOwner);
 
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.add(stake));
           expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance.sub(stake));
           expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
+          const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+          expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
+          expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
           expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.add(stake));
         }
       });
@@ -431,6 +439,7 @@ contract('StakingContract', (accounts) => {
           const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
 
           expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
+          expect(await notifier.calledWith.call()).to.eql(stakeOwner2);
 
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
           expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
@@ -459,6 +468,50 @@ contract('StakingContract', (accounts) => {
         it('should not allow to stake on behalf of a 0 address', async () => {
           await expectRevert(staking.acceptMigration(constants.ZERO_ADDRESS, stake, { from: stakeOwner }),
             "StakingContract::stake - stake owner can't be 0");
+        });
+
+        context('reentrant stake change notifier', async () => {
+          let reentrantNotifier;
+          beforeEach(async () => {
+            reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking.getAddress(), token.address);
+            await staking.setStakeChangeNotifier(reentrantNotifier, { from: migrationManager });
+          });
+
+          it('should effectively stake and deduct tokens twice', async () => {
+            await token.assign(reentrantNotifier.address, stake);
+            await reentrantNotifier.approve(staking.getAddress(), stake, { from: stakeOwner });
+            await reentrantNotifier.setStakeData(stakeOwner2, stake);
+
+            const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
+
+            expect(tx.logs).to.have.length(2); // Two events for the double stake.
+            expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
+            expect(await reentrantNotifier.calledWith.call()).to.eql(stakeOwner2);
+
+            // The operation will result in a double stake attribute to stakeOwner2:
+            const effectiveStake = stake.mul(new BN(2));
+            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(effectiveStake);
+            expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(effectiveStake);
+          });
+
+          context('insufficient balance for twice the stake', async () => {
+            it('should stake only once', async () => {
+              await token.assign(reentrantNotifier.address, stake.sub(new BN(1)));
+              await reentrantNotifier.approve(staking.getAddress(), stake, { from: stakeOwner });
+              await reentrantNotifier.setStakeData(stakeOwner2, stake);
+
+              const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
+
+              expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
+              expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed,
+                { notifier: reentrantNotifier.address });
+              expect(await reentrantNotifier.calledWith.call()).to.eql(constants.ZERO_ADDRESS);
+
+              // The operation will result in a single stake attribute to stakeOwner2:
+              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
+              expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(stake);
+            });
+          });
         });
       });
 
