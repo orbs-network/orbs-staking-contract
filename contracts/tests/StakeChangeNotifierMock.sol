@@ -7,13 +7,17 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
     address public calledWith;
     bool public shouldRevert;
 
-    function setRevert(bool _shouldRevert) public {
+    modifier notReverting() {
+        require(!shouldRevert, "StakeChangeNotifierMock: revert");
+
+        _;
+    }
+
+    function setRevert(bool _shouldRevert) external {
         shouldRevert = _shouldRevert;
     }
 
-    function stakeChange(address _stakerOwner) public {
-        require(!shouldRevert, "StakeChangeNotifierMock::stakeChange - revert");
-
+    function stakeChange(address _stakerOwner) public notReverting {
         calledWith = _stakerOwner;
     }
 }
