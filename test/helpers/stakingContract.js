@@ -91,6 +91,22 @@ class StakingContract {
   static getAddress(obj) {
     return obj instanceof Object ? obj.address : obj;
   }
+
+  static getEvents() {
+    return {
+      staked: 'Staked',
+      unstaked: 'Unstaked',
+      restaked: 'Restaked',
+      withdrew: 'Withdrew',
+      acceptedMigration: 'AcceptedMigration',
+      migrationManagerUpdated: 'MigrationManagerUpdated',
+      migrationDestinationAdded: 'MigrationDestinationAdded',
+      migrationDestinationRemoved: 'MigrationDestinationRemoved',
+      emergencyManagerUpdated: 'EmergencyManagerUpdated',
+      stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
+      stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
+    };
+  }
 }
 
 export default StakingContract;

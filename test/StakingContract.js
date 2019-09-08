@@ -5,17 +5,9 @@ import StakingContract from './helpers/stakingContract';
 const { expect } = chai;
 const { duration } = time;
 
+const EVENTS = StakingContract.getEvents();
 const VERSION = new BN(1);
 const MAX_APPROVED_STAKING_CONTRACTS = 10;
-
-const EVENTS = {
-  migrationManagerUpdated: 'MigrationManagerUpdated',
-  migrationDestinationAdded: 'MigrationDestinationAdded',
-  migrationDestinationRemoved: 'MigrationDestinationRemoved',
-  emergencyManagerUpdated: 'EmergencyManagerUpdated',
-  stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
-  stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
-};
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
 const StakeChangeNotifierMock = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
