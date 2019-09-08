@@ -10,7 +10,7 @@ const VERSION = new BN(1);
 const MAX_APPROVED_STAKING_CONTRACTS = 10;
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
-const StakeChangeNotifierMock = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
+const StakeChangeNotifier = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
 
 contract('StakingContract', (accounts) => {
   const migrationManager = accounts[8];
@@ -232,7 +232,7 @@ contract('StakingContract', (accounts) => {
     context('contract notifier', async () => {
       let notifier;
       beforeEach(async () => {
-        notifier = await StakeChangeNotifierMock.new();
+        notifier = await StakeChangeNotifier.new();
         await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
       });
 
