@@ -87,7 +87,6 @@ contract('StakingContract', (accounts) => {
         expect(await staking.getMigrationManager()).to.eql(migrationManager);
 
         const tx = await staking.setMigrationManager(newMigrationManager, { from: sender });
-
         expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { migrationManager: newMigrationManager });
 
         expect(await staking.getMigrationManager()).to.eql(newMigrationManager);
@@ -130,7 +129,6 @@ contract('StakingContract', (accounts) => {
         expect(await staking.getEmergencyManager()).to.eql(emergencyManager);
 
         const tx = await staking.setEmergencyManager(newEmergencyManager, { from: sender });
-
         expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { emergencyManager: newEmergencyManager });
 
         expect(await staking.getEmergencyManager()).to.eql(newEmergencyManager);
@@ -173,7 +171,6 @@ contract('StakingContract', (accounts) => {
         expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
 
         const tx = await staking.setStakeChangeNotifier(newNotifier, { from: sender });
-
         expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: newNotifier });
 
         expect(await staking.getStakeChangeNotifier()).to.eql(newNotifier);
@@ -188,7 +185,6 @@ contract('StakingContract', (accounts) => {
           expect(await staking.getStakeChangeNotifier()).to.eql(newNotifier);
 
           const tx = await staking.setStakeChangeNotifier(constants.ZERO_ADDRESS, { from: sender });
-
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: constants.ZERO_ADDRESS });
 
           expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
@@ -254,7 +250,6 @@ contract('StakingContract', (accounts) => {
           expect(await notifier.getCalledWith()).to.be.empty();
 
           const tx = await staking.notifyStakeChange(stakeOwner);
-
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.getAddress() });
 
           expect(await notifier.getCalledWith()).to.be.empty();
@@ -295,7 +290,6 @@ contract('StakingContract', (accounts) => {
           expect(await staking.isApprovedStakingContract(destination)).to.be.false();
 
           const tx = await staking.addMigrationDestination(destination, { from: sender });
-
           expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationAdded, { stakingContract: destination });
 
           expect(await staking.isApprovedStakingContract(destination)).to.be.true();
@@ -351,7 +345,6 @@ contract('StakingContract', (accounts) => {
           expect(await staking.isApprovedStakingContract(destination)).to.be.true();
 
           const tx = await staking.removeMigrationDestination(destination, { from: sender });
-
           expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationRemoved, { stakingContract: destination });
 
           expect(await staking.isApprovedStakingContract(destination)).to.be.false();
@@ -405,7 +398,6 @@ contract('StakingContract', (accounts) => {
           const prevTotalStakedTokens = await staking.getTotalStakedTokens();
 
           const tx = await staking.stake(stake, { from: stakeOwner });
-
           expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
 
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.add(stake));
@@ -438,7 +430,6 @@ contract('StakingContract', (accounts) => {
           expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
 
           const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
-
           expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
           expect(await notifier.getCalledWith()).to.have.members([stakeOwner2]);
 
@@ -502,7 +493,6 @@ contract('StakingContract', (accounts) => {
               await reentrantNotifier.setStakeData(stakeOwner2, stake);
 
               const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
-
               expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
               expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed,
                 { notifier: reentrantNotifier.getAddress() });
@@ -675,7 +665,6 @@ contract('StakingContract', (accounts) => {
         await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
         const tx = await staking.stake(newStake, { from: stakeOwner });
-
         expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
 
         const totalStake = stake.add(newStake);
