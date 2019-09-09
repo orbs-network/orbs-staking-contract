@@ -717,6 +717,23 @@ contract('StakingContract', (accounts) => {
           });
 
           context('fully withdrawn', async () => {
+            beforeEach(async () => {
+              await staking.withdraw({ from: stakeOwner });
+            });
+
+            it('should allow to stake', async () => {
+              const newStake = new BN(500);
+              await token.assign(stakeOwner, newStake);
+              await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
+
+              const tx = await staking.stake(newStake, { from: stakeOwner });
+              expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
+
+              const totalStake = stake.add(newStake).sub(unstaked);
+              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
+              expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
+              expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+            });
           });
         });
       });
@@ -835,6 +852,29 @@ contract('StakingContract', (accounts) => {
         });
 
         context('fully withdrawn', async () => {
+          beforeEach(async () => {
+            await staking.withdraw({ from: stakeOwner });
+          });
+
+          it('should allow to unstake more tokens', async () => {
+            const newStake = new BN(123);
+            await token.assign(stakeOwner, newStake);
+            await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
+            await staking.stake(newStake, { from: stakeOwner });
+            await notifier.reset();
+
+            const prevStakeOwnerStake = await staking.getStakeBalanceOf(stakeOwner);
+            const prevTotalStakedTokens = await staking.getTotalStakedTokens();
+
+            await staking.unstake(newStake, { from: stakeOwner });
+
+            const now = await time.latest();
+            expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerStake.sub(newStake));
+            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+            expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(newStake);
+            expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
+            expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(newStake));
+          });
         });
       });
 
@@ -848,6 +888,101 @@ contract('StakingContract', (accounts) => {
         });
       });
     });
+  });
+
+  describe('withdrawl', async () => {
+    let staking;
+    let notifier;
+    const cooldown = duration.days(1);
+    beforeEach(async () => {
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+    });
+
+    context('no stake', async () => {
+      const stakeOwner = accounts[3];
+
+      it('should not allow to withdraw', async () => {
+        await expectRevert(staking.withdraw({ from: stakeOwner }),
+          'StakingContract::withdraw - no unstaked tokens');
+      });
+    });
+
+    context('with stake', async () => {
+      const stake = new BN(1000);
+      const stakeOwner = accounts[4];
+
+      beforeEach(async () => {
+        await token.assign(stakeOwner, stake);
+        await token.approve(staking.getAddress(), stake, { from: stakeOwner });
+        await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
+      });
+
+      it('should not allow to withdraw', async () => {
+        await expectRevert(staking.withdraw({ from: stakeOwner }),
+          'StakingContract::withdraw - no unstaked tokens');
+      });
+
+      context('with unstaked stake', async () => {
+        const unstaked = new BN(100);
+        beforeEach(async () => {
+          await staking.unstake(unstaked, { from: stakeOwner });
+          await notifier.reset();
+        });
+
+        it('should not allow to withdraw', async () => {
+          await expectRevert(staking.withdraw({ from: stakeOwner }),
+            'StakingContract::withdraw - tokens are still in cooldown');
+        });
+
+        context('pending withdrawal', async () => {
+          beforeEach(async () => {
+            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+            await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
+            expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
+          });
+
+          it('should allow to withdraw all tokens', async () => {
+            const prevStakingBalance = await token.balanceOf(staking.getAddress());
+            const prevStakeOwnerBalance = await token.balanceOf(stakeOwner);
+            const prevTotalStakedTokens = await staking.getTotalStakedTokens();
+
+            const tx = await staking.withdraw({ from: stakeOwner });
+            expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: unstaked });
+            expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.sub(unstaked));
+            expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance.add(unstaked));
+            expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens);
+            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+            expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
+            expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
+          });
+
+          context('fully withdrawn', async () => {
+            beforeEach(async () => {
+              await staking.withdraw({ from: stakeOwner });
+            });
+
+            it('should not allow to withdraw', async () => {
+              await expectRevert(staking.withdraw({ from: stakeOwner }),
+                'StakingContract::withdraw - no unstaked tokens');
+            });
+          });
+
+          context.skip('stopped accepting new stake', async () => {
+            it('should allow to withdraw tokens', async () => {
+            });
+          });
+        });
+      });
+
+      context.skip('released all stake', async () => {
+        it('should allow to unstake tokens', async () => {
+        });
+      });
     });
   });
 });

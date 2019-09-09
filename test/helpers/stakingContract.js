@@ -112,6 +112,10 @@ class StakingContract {
     return this.staking.unstake(amount, options);
   }
 
+  async withdraw(options = {}) {
+    return this.staking.withdraw(options);
+  }
+
   async acceptMigration(stakeOwner, amount, options = {}) {
     return this.staking.acceptMigration(StakingContract.getAddress(stakeOwner), amount, options);
   }

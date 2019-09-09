@@ -49,6 +49,7 @@ contract StakingContract is IStakingContract {
 
     event Staked(address indexed stakeOwner, uint256 amount);
     event Unstaked(address indexed stakeOwner, uint256 amount);
+    event Withdrew(address indexed stakeOwner, uint256 amount);
     event AcceptedMigration(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(address indexed stakingContract);
@@ -188,6 +189,7 @@ contract StakingContract is IStakingContract {
         uint256 stakedAmount = stakeData.amount;
         uint256 cooldownAmount = stakeData.cooldownAmount;
         uint256 cooldownEndTime = stakeData.cooldownEndTime;
+
         require(stakedAmount >= _amount, "StakingContract::unstake - can't unstake more than the current stake");
 
         // If any cooldown tokens are ready to withdraw - revert. Stake owner should withdraw their unstaked tokens
@@ -203,6 +205,31 @@ contract StakingContract is IStakingContract {
         totalStakedTokens = totalStakedTokens.sub(_amount);
 
         emit Unstaked(stakeOwner, _amount);
+
+        // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
+        notifyStakeChange(stakeOwner);
+    }
+
+    /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender.
+    ///
+    /// Note: Stake owner can withdraw their ORBS tokens only after they have unstaked them and the cooldown period has
+    /// passed.
+    function withdraw() external {
+        address stakeOwner = msg.sender;
+
+        Stake storage stakeData = stakes[stakeOwner];
+        uint256 cooldownAmount = stakeData.cooldownAmount;
+        uint256 cooldownEndTime = stakeData.cooldownEndTime;
+
+        require(cooldownAmount > 0, "StakingContract::withdraw - no unstaked tokens");
+        require(cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
+
+        stakeData.cooldownAmount = 0;
+        stakeData.cooldownEndTime = 0;
+
+        require(token.transfer(stakeOwner, cooldownAmount), "StakingContract::withdraw - couldn't transfer stake");
+
+        emit Withdrew(stakeOwner, cooldownAmount);
 
         // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
         notifyStakeChange(stakeOwner);
