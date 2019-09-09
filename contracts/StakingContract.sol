@@ -50,6 +50,7 @@ contract StakingContract is IStakingContract {
     event Staked(address indexed stakeOwner, uint256 amount);
     event Unstaked(address indexed stakeOwner, uint256 amount);
     event Withdrew(address indexed stakeOwner, uint256 amount);
+    event Restaked(address indexed stakeOwner, uint256 amount);
     event AcceptedMigration(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(address indexed stakingContract);
@@ -230,6 +231,27 @@ contract StakingContract is IStakingContract {
         require(token.transfer(stakeOwner, cooldownAmount), "StakingContract::withdraw - couldn't transfer stake");
 
         emit Withdrew(stakeOwner, cooldownAmount);
+
+        // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
+        notifyStakeChange(stakeOwner);
+    }
+
+    /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender
+    function restake() external {
+        address stakeOwner = msg.sender;
+
+        Stake storage stakeData = stakes[stakeOwner];
+
+        require(stakeData.cooldownAmount > 0, "StakingContract::restake - no unstaked tokens");
+
+        uint256 cooldownAmount = stakeData.cooldownAmount;
+        stakeData.amount = stakeData.amount.add(cooldownAmount);
+        stakeData.cooldownAmount = 0;
+        stakeData.cooldownEndTime = 0;
+
+        totalStakedTokens = totalStakedTokens.add(cooldownAmount);
+
+        emit Restaked(stakeOwner, cooldownAmount);
 
         // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
         notifyStakeChange(stakeOwner);
