@@ -1,6 +1,8 @@
+import BaseContract from './baseContract';
+
 const StakeChangeNotifierMock = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
 
-class StakeChangeNotifier {
+class StakeChangeNotifier extends BaseContract {
   static async new() {
     const notifier = new StakeChangeNotifier();
     await notifier.deploy();
@@ -9,46 +11,26 @@ class StakeChangeNotifier {
   }
 
   async deploy() {
-    this.setNotifier(await StakeChangeNotifierMock.new());
-  }
-
-  setNotifier(notifier) {
-    this.notifier = notifier;
-  }
-
-  getAddress() {
-    return this.notifier.address;
+    this.contract = await StakeChangeNotifierMock.new();
   }
 
   async setRevert(shouldRevert) {
-    return this.notifier.setRevert(shouldRevert);
+    return this.contract.setRevert(shouldRevert);
   }
 
   async reset() {
-    return this.notifier.reset();
+    return this.contract.reset();
   }
 
   async getCalledWith() {
     const calledWith = [];
 
-    const length = (await this.notifier.getCalledWithLength.call()).toNumber();
+    const length = (await this.contract.getCalledWithLength.call()).toNumber();
     for (let i = 0; i < length; ++i) {
-      calledWith.push(await this.notifier.calledWith.call(i));
+      calledWith.push(await this.contract.calledWith.call(i));
     }
 
     return calledWith;
-  }
-
-  static getAddress(obj) {
-    if (obj instanceof Object) {
-      if (typeof obj.getAddress === 'function') {
-        return obj.getAddress();
-      }
-
-      return obj.address;
-    }
-
-    return obj;
   }
 }
 

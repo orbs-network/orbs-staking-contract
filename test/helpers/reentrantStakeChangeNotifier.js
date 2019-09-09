@@ -18,16 +18,16 @@ class ReentrantStakeChangeNotifier extends StakeChangeNotifier {
   }
 
   async deploy() {
-    this.setNotifier(await StakeChangeNotifierMock.new(StakeChangeNotifier.getAddress(this.staking),
-      StakeChangeNotifier.getAddress(this.token)));
+    this.contract = await StakeChangeNotifierMock.new(ReentrantStakeChangeNotifier.getAddress(this.staking),
+      ReentrantStakeChangeNotifier.getAddress(this.token));
   }
 
   async setStakeData(stakeOwner, amount) {
-    return this.notifier.setStakeData(StakeChangeNotifier.getAddress(stakeOwner), amount);
+    return this.contract.setStakeData(ReentrantStakeChangeNotifier.getAddress(stakeOwner), amount);
   }
 
   async approve(spender, amount, options = {}) {
-    return this.notifier.approve(StakeChangeNotifier.getAddress(spender), amount, options);
+    return this.contract.approve(ReentrantStakeChangeNotifier.getAddress(spender), amount, options);
   }
 }
 
