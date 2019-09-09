@@ -48,6 +48,7 @@ contract StakingContract is IStakingContract {
     IERC20 public token;
 
     event Staked(address indexed stakeOwner, uint256 amount);
+    event Unstaked(address indexed stakeOwner, uint256 amount);
     event AcceptedMigration(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(address indexed stakingContract);
@@ -175,6 +176,38 @@ contract StakingContract is IStakingContract {
         notifyStakeChange(stakeOwner);
     }
 
+    /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown
+    /// period, after which msg.sender would be able to withdraw all of his tokens.
+    function unstake(uint256 _amount) external {
+        address stakeOwner = msg.sender;
+
+        require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
+
+        Stake storage stakeData = stakes[stakeOwner];
+
+        uint256 stakedAmount = stakeData.amount;
+        uint256 cooldownAmount = stakeData.cooldownAmount;
+        uint256 cooldownEndTime = stakeData.cooldownEndTime;
+        require(stakedAmount >= _amount, "StakingContract::unstake - can't unstake more than the current stake");
+
+        // If any cooldown tokens are ready to withdraw - revert. Stake owner should withdraw their unstaked tokens
+        // first.
+        require(cooldownAmount == 0 || cooldownEndTime > now,
+            "StakingContract::unstake - unable to unstake when there are tokens pending withdrawal");
+
+        // Update the tokens in cooldown. We will restart the cooldown period of all tokens in cooldown.
+        stakeData.amount = stakedAmount.sub(_amount);
+        stakeData.cooldownAmount = cooldownAmount.add(_amount);
+        stakeData.cooldownEndTime = now.add(cooldownPeriod);
+
+        totalStakedTokens = totalStakedTokens.sub(_amount);
+
+        emit Unstaked(stakeOwner, _amount);
+
+        // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
+        notifyStakeChange(stakeOwner);
+    }
+
     /// @dev Stakes ORBS tokens on behalf of msg.sender.
     /// @param _stakeOwner address The specified stake owner.
     /// @param _amount uint256 The amount of tokens to stake.
@@ -242,6 +275,15 @@ contract StakingContract is IStakingContract {
     /// @dev Returns the total amount staked tokens (excluding unstaked tokens).
     function getTotalStakedTokens() external view returns (uint256) {
         return totalStakedTokens;
+    }
+
+    /// @dev Returns the time that the cooldown period ends (or ended) and the amount of tokens to be released.
+    /// @param _stakeOwner address The address to check.
+    function getUnstakeStatus(address _stakeOwner) external view returns (uint256 cooldownAmount,
+        uint256 cooldownEndTime) {
+        Stake memory stakeData = stakes[_stakeOwner];
+        cooldownAmount = stakeData.cooldownAmount;
+        cooldownEndTime = stakeData.cooldownEndTime;
     }
 
     /// @dev Returns whether a specific staking contract was approved.

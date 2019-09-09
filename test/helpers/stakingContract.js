@@ -41,6 +41,14 @@ class StakingContract {
     return this.staking.getTotalStakedTokens.call();
   }
 
+  async getUnstakeStatus(stakeOwner) {
+    const unstakedStatus = await this.staking.getUnstakeStatus.call(StakingContract.getAddress(stakeOwner));
+    return {
+      cooldownAmount: unstakedStatus[0],
+      cooldownEndTime: unstakedStatus[1],
+    };
+  }
+
   async getStakeChangeNotifier() {
     return this.staking.notifier.call();
   }
@@ -98,6 +106,10 @@ class StakingContract {
 
   async stake(amount, options = {}) {
     return this.staking.stake(amount, options);
+  }
+
+  async unstake(amount, options = {}) {
+    return this.staking.unstake(amount, options);
   }
 
   async acceptMigration(stakeOwner, amount, options = {}) {

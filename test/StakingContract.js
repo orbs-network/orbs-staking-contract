@@ -10,6 +10,7 @@ const { duration } = time;
 const EVENTS = StakingContract.getEvents();
 const VERSION = new BN(1);
 const MAX_APPROVED_STAKING_CONTRACTS = 10;
+const TIME_ERROR = duration.seconds(10);
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
 
@@ -673,6 +674,180 @@ contract('StakingContract', (accounts) => {
         expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
         expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
       });
+
+      context('with unstaked tokens', async () => {
+        const unstaked = new BN(100);
+        beforeEach(async () => {
+          await staking.unstake(unstaked, { from: stakeOwner });
+        });
+
+        it('should allow to stake', async () => {
+          const newStake = new BN(100);
+          await token.assign(stakeOwner, newStake);
+          await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
+
+          const tx = await staking.stake(newStake, { from: stakeOwner });
+          expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
+
+          const totalStake = stake.add(newStake).sub(unstaked);
+          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(unstaked));
+          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
+          expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+        });
+
+        context('pending withdrawal', async () => {
+          beforeEach(async () => {
+            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+            await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
+            expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
+          });
+
+          it('should allow to stake', async () => {
+            const newStake = new BN(200);
+            await token.assign(stakeOwner, newStake);
+            await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
+
+            const tx = await staking.stake(newStake, { from: stakeOwner });
+            expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
+
+            const totalStake = stake.add(newStake).sub(unstaked);
+            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(unstaked));
+            expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
+            expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+          });
+
+          context('fully withdrawn', async () => {
+          });
+        });
+      });
+    });
+
+    context.skip('stopped accepting new stake', async () => {
+      it('should not allow to stake tokens', async () => {
+      });
+    });
+
+    context.skip('released all stake', async () => {
+      it('should not allow to stake tokens', async () => {
+      });
+    });
+  });
+
+  describe('unstaking', async () => {
+    let staking;
+    let notifier;
+    const cooldown = duration.days(1);
+    beforeEach(async () => {
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+    });
+
+    context('no stake', async () => {
+      const stakeOwner = accounts[1];
+
+      it('should not allow to unstake', async () => {
+        await expectRevert(staking.unstake(new BN(1), { from: stakeOwner }),
+          "StakingContract::unstake - can't unstake more than the current stake");
+      });
+    });
+
+    context('with stake', async () => {
+      const stake = new BN(1000);
+      const stakeOwner = accounts[4];
+
+      beforeEach(async () => {
+        await token.assign(stakeOwner, stake);
+        await token.approve(staking.getAddress(), stake, { from: stakeOwner });
+        await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
+      });
+
+      it('should allow to partially unstake tokens', async () => {
+        const prevStakeOwnerStake = await staking.getStakeBalanceOf(stakeOwner);
+        const prevTotalStakedTokens = await staking.getTotalStakedTokens();
+
+        const unstake1 = new BN(100);
+        const tx1 = await staking.unstake(unstake1, { from: stakeOwner });
+        expectEvent.inLogs(tx1.logs, EVENTS.unstaked, { stakeOwner, amount: unstake1 });
+        expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+        let totalUnstaked = unstake1;
+        let now = await time.latest();
+        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerStake.sub(totalUnstaked));
+        let unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+        expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(totalUnstaked);
+        expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
+        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(totalUnstaked));
+
+        // Skip some time ahead in order to make sure that the following operation properly resets cooldown end time.
+        await time.increase(duration.hours(6));
+
+        const unstake2 = new BN(500);
+        const tx2 = await staking.unstake(unstake2, { from: stakeOwner });
+        expectEvent.inLogs(tx2.logs, EVENTS.unstaked, { stakeOwner, amount: unstake2 });
+        expect(await notifier.getCalledWith()).to.have.members([stakeOwner, stakeOwner]);
+
+        totalUnstaked = totalUnstaked.add(unstake2);
+        now = await time.latest();
+        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerStake.sub(totalUnstaked));
+        unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+        expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(totalUnstaked);
+        expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
+        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(totalUnstaked));
+      });
+
+      it('should allow to unstake all tokens', async () => {
+        const tx = await staking.unstake(stake, { from: stakeOwner });
+        expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: stake });
+        expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+        const now = await time.latest();
+        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+        const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+        expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(stake);
+        expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
+        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(new BN(0));
+      });
+
+      it('should not allow to unstake 0 tokens', async () => {
+        await expectRevert(staking.unstake(new BN(0), { from: stakeOwner }),
+          'StakingContract::unstake - amount must be greater than 0');
+      });
+
+      it('should not allow to unstake more tokens than the staker has staked', async () => {
+        await expectRevert(staking.unstake(stake.add(new BN(1)), { from: stakeOwner }),
+          "StakingContract::unstake - can't unstake more than the current stake");
+      });
+
+      context('pending withdrawal', async () => {
+        beforeEach(async () => {
+          await staking.unstake(stake.sub(new BN(100)), { from: stakeOwner });
+
+          const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+          await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
+          expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
+        });
+
+        it('should not allow to unstake more tokens', async () => {
+          await expectRevert(staking.unstake(new BN(1), { from: stakeOwner }),
+            'StakingContract::unstake - unable to unstake when there are tokens pending withdrawal');
+        });
+
+        context('fully withdrawn', async () => {
+        });
+      });
+
+      context.skip('stopped accepting new stake', async () => {
+        it('should allow to unstake tokens', async () => {
+        });
+      });
+
+      context.skip('released all stake', async () => {
+        it('should allow to unstake tokens', async () => {
+        });
+      });
+    });
     });
   });
 });

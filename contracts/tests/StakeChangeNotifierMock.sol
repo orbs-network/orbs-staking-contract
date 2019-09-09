@@ -17,11 +17,15 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
         shouldRevert = _shouldRevert;
     }
 
-    function stakeChange(address _stakerOwner) public notReverting {
-        calledWith.push(_stakerOwner);
+    function reset() external {
+        delete calledWith;
     }
 
     function getCalledWithLength() external view returns (uint256) {
         return calledWith.length;
+    }
+
+    function stakeChange(address _stakerOwner) public notReverting {
+        calledWith.push(_stakerOwner);
     }
 }

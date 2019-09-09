@@ -24,6 +24,10 @@ class StakeChangeNotifier {
     return this.notifier.setRevert(shouldRevert);
   }
 
+  async reset() {
+    return this.notifier.reset();
+  }
+
   async getCalledWith() {
     const calledWith = [];
 
