@@ -64,7 +64,14 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('setting the migration manager', async () => {
-    const newMigrationManager = accounts[3];
+    const testMigrationManagerSetting = async (staking, from, to) => {
+      expect(await staking.getMigrationManager()).to.eql(from);
+
+      const tx = await staking.setMigrationManager(to, { from });
+      expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { migrationManager: to });
+
+      expect(await staking.getMigrationManager()).to.eql(to);
+    };
 
     let staking;
     beforeEach(async () => {
@@ -73,40 +80,41 @@ contract('StakingContract', (accounts) => {
     });
 
     context('regular account', async () => {
-      const sender = accounts[1];
-
       it('should not allow to set', async () => {
+        const sender = accounts[1];
+        const newMigrationManager = accounts[2];
         await expectRevert(staking.setMigrationManager(newMigrationManager, { from: sender }),
           'StakingContract: caller is not the migration manager');
       });
     });
 
     context('migration manager', async () => {
-      const sender = migrationManager;
-
       it('should set to a new address', async () => {
-        expect(await staking.getMigrationManager()).to.eql(migrationManager);
-
-        const tx = await staking.setMigrationManager(newMigrationManager, { from: sender });
-        expectEvent.inLogs(tx.logs, EVENTS.migrationManagerUpdated, { migrationManager: newMigrationManager });
-
-        expect(await staking.getMigrationManager()).to.eql(newMigrationManager);
+        const newMigrationManager = accounts[3];
+        await testMigrationManagerSetting(staking, migrationManager, newMigrationManager);
       });
 
       it('should not allow to change to 0', async () => {
-        await expectRevert(staking.setMigrationManager(constants.ZERO_ADDRESS, { from: sender }),
+        await expectRevert(staking.setMigrationManager(constants.ZERO_ADDRESS, { from: migrationManager }),
           'StakingContract::setMigrationManager - address must not be 0');
       });
 
       it('should not allow to change to the same address', async () => {
-        await expectRevert(staking.setMigrationManager(migrationManager, { from: sender }),
+        await expectRevert(staking.setMigrationManager(migrationManager, { from: migrationManager }),
           'StakingContract::setMigrationManager - new address must be different');
       });
     });
   });
 
   describe('setting the emergency manager', async () => {
-    const newEmergencyManager = accounts[3];
+    const testEmergencyManagerSetting = async (staking, from, to) => {
+      expect(await staking.getEmergencyManager()).to.eql(from);
+
+      const tx = await staking.setEmergencyManager(to, { from });
+      expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { emergencyManager: to });
+
+      expect(await staking.getEmergencyManager()).to.eql(to);
+    };
 
     let staking;
     beforeEach(async () => {
@@ -118,6 +126,7 @@ contract('StakingContract', (accounts) => {
       const sender = accounts[1];
 
       it('should not allow to set', async () => {
+        const newEmergencyManager = accounts[3];
         await expectRevert(staking.setEmergencyManager(newEmergencyManager, { from: sender }),
           'StakingContract: caller is not the emergency manager');
       });
@@ -127,12 +136,8 @@ contract('StakingContract', (accounts) => {
       const sender = emergencyManager;
 
       it('should set to a new address', async () => {
-        expect(await staking.getEmergencyManager()).to.eql(emergencyManager);
-
-        const tx = await staking.setEmergencyManager(newEmergencyManager, { from: sender });
-        expectEvent.inLogs(tx.logs, EVENTS.emergencyManagerUpdated, { emergencyManager: newEmergencyManager });
-
-        expect(await staking.getEmergencyManager()).to.eql(newEmergencyManager);
+        const newEmergencyManager = accounts[3];
+        await testEmergencyManagerSetting(staking, emergencyManager, newEmergencyManager);
       });
 
       it('should not allow to change to 0', async () => {
