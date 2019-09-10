@@ -330,6 +330,11 @@ contract StakingContract is IStakingContract {
         cooldownEndTime = stakeData.cooldownEndTime;
     }
 
+    /// @dev Returns the address of the underlying staked token.
+    function getToken() view external returns (IERC20) {
+        return token;
+    }
+
     /// @dev Returns whether a specific staking contract was approved.
     /// @param _stakingContract IStakingContract The staking contract to look for.
     function isApprovedStakingContract(IStakingContract _stakingContract) public view returns (bool) {
