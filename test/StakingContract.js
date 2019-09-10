@@ -893,7 +893,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('withdrawl', async () => {
-    const testWithdrawl = async (staking, notifier, stakeOwner, unstakedAmount) => {
+    const testWithdrawl = async (staking, notifier, stakeOwner) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -905,6 +905,7 @@ contract('StakingContract', (accounts) => {
       };
 
       const prevState = await getState();
+      const unstakedAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
 
       await notifier.reset();
 
@@ -957,9 +958,8 @@ contract('StakingContract', (accounts) => {
       });
 
       context('with unstaked stake', async () => {
-        const unstaked = new BN(100);
         beforeEach(async () => {
-          await staking.unstake(unstaked, { from: stakeOwner });
+          await staking.unstake(BN(100), { from: stakeOwner });
           await notifier.reset();
         });
 
@@ -976,7 +976,7 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should allow to withdraw all tokens', async () => {
-            await testWithdrawl(staking, notifier, stakeOwner, unstaked);
+            await testWithdrawl(staking, notifier, stakeOwner);
           });
 
           context('fully withdrawn', async () => {
