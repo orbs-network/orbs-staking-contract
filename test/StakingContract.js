@@ -187,18 +187,17 @@ contract('StakingContract', (accounts) => {
       });
 
       context('already set', async () => {
+        const newNotifier = accounts[2];
+
         beforeEach(async () => {
-          const newNotifier = accounts[2];
           await staking.setStakeChangeNotifier(newNotifier, { from: sender });
         });
 
         it('should allow to reset to 0', async () => {
-          const newNotifier = accounts[6];
           await testSetStakeChangeNotifier(staking, newNotifier, constants.ZERO_ADDRESS);
         });
 
         it('should not allow to change to the same address', async () => {
-          const newNotifier = accounts[3];
           await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
             'StakingContract::setStakeChangeNotifier - new address must be different');
         });
