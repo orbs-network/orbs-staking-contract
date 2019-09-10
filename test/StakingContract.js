@@ -385,6 +385,60 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('staking', async () => {
+    const testStake = async (staking, notifier, stakeOwner, stake, from) => {
+      const getState = async () => {
+        const state = {
+          stakingBalance: await token.balanceOf(staking.getAddress()),
+          fromBalance: await token.balanceOf(from),
+          stakeOwnerStake: await staking.getStakeBalanceOf(stakeOwner),
+          stakeOwnerUnstakedStatus: await staking.getUnstakeStatus(stakeOwner),
+          totalStakedTokens: await staking.getTotalStakedTokens(),
+        };
+
+        if (from !== stakeOwner) {
+          state.stakeOwnerBalance = await token.balanceOf(stakeOwner);
+          state.fromStake = await staking.getStakeBalanceOf(from);
+          state.fromUnstakedStatus = await staking.getUnstakeStatus(from);
+        }
+
+        return state;
+      };
+
+      const prevState = await getState();
+
+      await notifier.reset();
+
+      if (from === stakeOwner) {
+        const tx = await staking.stake(stake, { from });
+        expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
+      } else {
+        const tx = await staking.acceptMigration(stakeOwner, stake, { from });
+        expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner, amount: stake });
+      }
+
+      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      const currentState = await getState();
+
+      expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.add(stake));
+      expect(currentState.fromBalance).to.be.bignumber.eq(prevState.fromBalance.sub(stake));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.add(stake));
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
+        .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount);
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
+        .eq(prevState.stakeOwnerUnstakedStatus.cooldownEndTime);
+      expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.add(stake));
+
+      if (from !== stakeOwner) {
+        expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
+        expect(currentState.fromStake).to.be.bignumber.eq(prevState.fromStake);
+        expect(currentState.fromUnstakedStatus.cooldownAmount).to.be.bignumber
+          .eq(prevState.fromUnstakedStatus.cooldownAmount);
+        expect(currentState.fromUnstakedStatus.cooldownEndTime).to.be.bignumber
+          .eq(prevState.fromUnstakedStatus.cooldownEndTime);
+      }
+    };
+
     let staking;
     let notifier;
     beforeEach(async () => {
@@ -408,23 +462,8 @@ contract('StakingContract', (accounts) => {
           await token.assign(stakeOwner, stake);
           await token.approve(staking.getAddress(), stake, { from: stakeOwner });
 
-          const prevStakingBalance = await token.balanceOf(staking.getAddress());
-          const prevStakeOwnerBalance = await token.balanceOf(stakeOwner);
-          const prevTotalStakedTokens = await staking.getTotalStakedTokens();
-
-          const tx = await staking.stake(stake, { from: stakeOwner });
-          expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
-
-          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.add(stake));
-          expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance.sub(stake));
-          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
-          const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-          expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
-          expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
-          expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.add(stake));
+          await testStake(staking, notifier, stakeOwner, stake, stakeOwner);
         }
-
-        expect(await notifier.getCalledWith()).to.have.members(specs.map((s) => s.stakeOwner));
       });
 
       describe('accept migration', async () => {
@@ -438,21 +477,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow to stake on behalf of a different staker', async () => {
-          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(new BN(0));
-          expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(stake);
-          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
-          expect(await token.balanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
-          expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
-
-          const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
-          expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
-          expect(await notifier.getCalledWith()).to.have.members([stakeOwner2]);
-
-          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
-          expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
-          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
-          expect(await token.balanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
-          expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(stake);
+          await testStake(staking, notifier, stakeOwner2, stake, stakeOwner);
         });
 
         it('should not allow to stake more tokens than the staker has', async () => {
@@ -679,19 +704,12 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, newStake);
         await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-        const tx = await staking.stake(newStake, { from: stakeOwner });
-        expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
-
-        const totalStake = stake.add(newStake);
-        expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
-        expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
-        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
-        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+        await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
       });
 
       context('with unstaked tokens', async () => {
-        const unstaked = new BN(100);
         beforeEach(async () => {
+          const unstaked = new BN(100);
           await staking.unstake(unstaked, { from: stakeOwner });
         });
 
@@ -700,13 +718,7 @@ contract('StakingContract', (accounts) => {
           await token.assign(stakeOwner, newStake);
           await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-          const tx = await staking.stake(newStake, { from: stakeOwner });
-          expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
-
-          const totalStake = stake.add(newStake).sub(unstaked);
-          expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(unstaked));
-          expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
-          expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+          await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
         });
 
         context('pending withdrawal', async () => {
@@ -721,13 +733,7 @@ contract('StakingContract', (accounts) => {
             await token.assign(stakeOwner, newStake);
             await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-            const tx = await staking.stake(newStake, { from: stakeOwner });
-            expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
-
-            const totalStake = stake.add(newStake).sub(unstaked);
-            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(unstaked));
-            expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
-            expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+            await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
           });
 
           context('fully withdrawn', async () => {
@@ -740,13 +746,7 @@ contract('StakingContract', (accounts) => {
               await token.assign(stakeOwner, newStake);
               await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-              const tx = await staking.stake(newStake, { from: stakeOwner });
-              expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: newStake });
-
-              const totalStake = stake.add(newStake).sub(unstaked);
-              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
-              expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(totalStake);
-              expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(totalStake);
+              await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
             });
           });
         });
@@ -1120,37 +1120,46 @@ contract('StakingContract', (accounts) => {
 
   describe('migration', async () => {
     const testMigration = async (staking, notifier, stakeOwner, migrationDestination, migrationNotifier) => {
+      const getState = async () => {
+        return {
+          stakingBalance: await token.balanceOf(staking.getAddress()),
+          stakeOwnerBalance: await token.balanceOf(stakeOwner),
+          stakeOwnerStake: await staking.getStakeBalanceOf(stakeOwner),
+          stakeOwnerUnstakedStatus: await staking.getUnstakeStatus(stakeOwner),
+          totalStakedTokens: await staking.getTotalStakedTokens(),
+          migrationStakingBalance: await token.balanceOf(migrationDestination.getAddress()),
+          migrationStakeOwnerStake: await migrationDestination.getStakeBalanceOf(stakeOwner),
+          migrationTotalStakedTokens: await migrationDestination.getTotalStakedTokens(),
+          migrationUnstakedStatus: await migrationDestination.getUnstakeStatus(stakeOwner),
+        };
+      };
+
       const stake = await staking.getStakeBalanceOf(stakeOwner);
-      const prevStakingBalance = await token.balanceOf(staking.getAddress());
-      const prevStakeOwnerBalance = await token.balanceOf(stakeOwner);
-      const prevTotalStakedTokens = await staking.getTotalStakedTokens();
-      const prevUnstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-      const prevMigrationStakingBalance = await token.balanceOf(migrationDestination.getAddress());
-      const prevMigrationStakeOwnerStake = await migrationDestination.getStakeBalanceOf(stakeOwner);
-      const prevMigrationTotalStakedTokens = await migrationDestination.getTotalStakedTokens();
-      const prevMigrationUnstakedStatus = await migrationDestination.getUnstakeStatus(stakeOwner);
+      const prevState = await getState();
 
       const tx = await staking.migrateStakedTokens(migrationDestination, { from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake });
       expect(await notifier.getCalledWith()).to.be.empty();
       expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
 
-      expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.sub(stake));
-      expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance);
-      expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
-      expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(stake));
-      const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-      expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(prevUnstakedStatus.cooldownAmount);
-      expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(prevUnstakedStatus.cooldownEndTime);
-      expect(await token.balanceOf(migrationDestination.getAddress())).to.be.bignumber
-        .eq(prevMigrationStakingBalance.add(stake));
-      expect(await migrationDestination.getStakeBalanceOf(stakeOwner)).to.be.bignumber
-        .eq(prevMigrationStakeOwnerStake.add(stake));
-      expect(await migrationDestination.getTotalStakedTokens()).to.be.bignumber
-        .eq(prevMigrationTotalStakedTokens.add(stake));
-      const migrationUnstakedStatus = await migrationDestination.getUnstakeStatus(stakeOwner);
-      expect(migrationUnstakedStatus.cooldownAmount).to.be.bignumber.eq(prevMigrationUnstakedStatus.cooldownAmount);
-      expect(migrationUnstakedStatus.cooldownEndTime).to.be.bignumber.eq(prevMigrationUnstakedStatus.cooldownEndTime);
+      const currentState = await getState();
+
+      expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(stake));
+      expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.sub(stake));
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
+        .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount);
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
+        .eq(prevState.stakeOwnerUnstakedStatus.cooldownEndTime);
+      expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.sub(stake));
+      expect(currentState.migrationStakingBalance).to.be.bignumber.eq(prevState.migrationStakingBalance.add(stake));
+      expect(currentState.migrationStakeOwnerStake).to.be.bignumber.eq(prevState.migrationStakeOwnerStake.add(stake));
+      expect(currentState.migrationTotalStakedTokens).to.be.bignumber
+        .eq(prevState.migrationTotalStakedTokens.add(stake));
+      expect(currentState.migrationUnstakedStatus.cooldownAmount).to.be.bignumber
+        .eq(prevState.migrationUnstakedStatus.cooldownAmount);
+      expect(currentState.migrationUnstakedStatus.cooldownEndTime).to.be.bignumber
+        .eq(prevState.migrationUnstakedStatus.cooldownEndTime);
     };
 
     let staking;
