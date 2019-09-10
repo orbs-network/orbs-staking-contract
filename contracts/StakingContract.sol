@@ -51,6 +51,7 @@ contract StakingContract is IStakingContract {
     event Withdrew(address indexed stakeOwner, uint256 amount);
     event Restaked(address indexed stakeOwner, uint256 amount);
     event AcceptedMigration(address indexed stakeOwner, uint256 amount);
+    event MigratedStake(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(address indexed stakingContract);
     event MigrationDestinationRemoved(address indexed stakingContract);
@@ -264,6 +265,29 @@ contract StakingContract is IStakingContract {
 
         // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
         notifyStakeChange(_stakeOwner);
+    }
+
+    /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
+    function migrateStakedTokens(IStakingContract _newStakingContract) external {
+        require(isApprovedStakingContract(_newStakingContract),
+            "StakingContract::migrateStakedTokens - migration destination wasn't approved");
+        require(_newStakingContract.getToken() == token,
+            "StakingContract::migrateStakedTokens - staked tokens must be the same");
+
+        address stakeOwner = msg.sender;
+        Stake storage stakeData = stakes[stakeOwner];
+        uint256 amount = stakeData.amount;
+        require(amount > 0, "StakingContract::migrateStakedTokens - no staked tokens");
+
+        require(token.approve(_newStakingContract, amount),
+            "StakingContract::migrateStakedTokens - couldn't approve transfer");
+
+        stakeData.amount = 0;
+        totalStakedTokens = totalStakedTokens.sub(amount);
+
+        emit MigratedStake(stakeOwner, amount);
+
+        _newStakingContract.acceptMigration(stakeOwner, amount);
     }
 
     /// @dev Stakes ORBS tokens on behalf of a list of addresses.

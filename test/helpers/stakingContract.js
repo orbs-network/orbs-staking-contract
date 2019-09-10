@@ -124,6 +124,10 @@ class StakingContract extends BaseContract {
     return this.contract.acceptMigration(StakingContract.getAddress(stakeOwner), amount, options);
   }
 
+  async migrateStakedTokens(stakingContract, options = {}) {
+    return this.contract.migrateStakedTokens(StakingContract.getAddress(stakingContract), options);
+  }
+
   async distributeBatchRewards(totalStake, stakeOwners, amounts, options = {}) {
     return this.contract.distributeBatchRewards(totalStake, stakeOwners.map((s) => StakingContract.getAddress(s)),
       amounts, options);
@@ -136,6 +140,7 @@ class StakingContract extends BaseContract {
       restaked: 'Restaked',
       withdrew: 'Withdrew',
       acceptedMigration: 'AcceptedMigration',
+      migratedStake: 'MigratedStake',
       migrationManagerUpdated: 'MigrationManagerUpdated',
       migrationDestinationAdded: 'MigrationDestinationAdded',
       migrationDestinationRemoved: 'MigrationDestinationRemoved',

@@ -1103,4 +1103,164 @@ contract('StakingContract', (accounts) => {
       });
     });
   });
+
+  describe('migration', async () => {
+    const testMigration = async (staking, notifier, stakeOwner, migrationDestination, migrationNotifier) => {
+      const stake = await staking.getStakeBalanceOf(stakeOwner);
+      const prevStakingBalance = await token.balanceOf(staking.getAddress());
+      const prevStakeOwnerBalance = await token.balanceOf(stakeOwner);
+      const prevTotalStakedTokens = await staking.getTotalStakedTokens();
+      const prevUnstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+      const prevMigrationStakingBalance = await token.balanceOf(migrationDestination.getAddress());
+      const prevMigrationStakeOwnerStake = await migrationDestination.getStakeBalanceOf(stakeOwner);
+      const prevMigrationTotalStakedTokens = await migrationDestination.getTotalStakedTokens();
+      const prevMigrationUnstakedStatus = await migrationDestination.getUnstakeStatus(stakeOwner);
+
+      const tx = await staking.migrateStakedTokens(migrationDestination, { from: stakeOwner });
+      expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake });
+      expect(await notifier.getCalledWith()).to.be.empty();
+      expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.sub(stake));
+      expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance);
+      expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
+      expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(stake));
+      const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+      expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(prevUnstakedStatus.cooldownAmount);
+      expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(prevUnstakedStatus.cooldownEndTime);
+      expect(await token.balanceOf(migrationDestination.getAddress())).to.be.bignumber
+        .eq(prevMigrationStakingBalance.add(stake));
+      expect(await migrationDestination.getStakeBalanceOf(stakeOwner)).to.be.bignumber
+        .eq(prevMigrationStakeOwnerStake.add(stake));
+      expect(await migrationDestination.getTotalStakedTokens()).to.be.bignumber
+        .eq(prevMigrationTotalStakedTokens.add(stake));
+      const migrationUnstakedStatus = await migrationDestination.getUnstakeStatus(stakeOwner);
+      expect(migrationUnstakedStatus.cooldownAmount).to.be.bignumber.eq(prevMigrationUnstakedStatus.cooldownAmount);
+      expect(migrationUnstakedStatus.cooldownEndTime).to.be.bignumber.eq(prevMigrationUnstakedStatus.cooldownEndTime);
+    };
+
+    let staking;
+    let notifier;
+    const cooldown = duration.days(1);
+    let migrationDestinations;
+    let migrationNotifiers;
+    beforeEach(async () => {
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+
+      migrationDestinations = [];
+      migrationNotifiers = [];
+
+      for (let i = 0; i < 3; ++i) {
+        const migrationDestination = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+        const migrationNotifier = await StakeChangeNotifier.new();
+        await migrationDestination.setStakeChangeNotifier(migrationNotifier, { from: migrationManager });
+        await staking.addMigrationDestination(migrationDestination, { from: migrationManager });
+
+        migrationDestinations.push(migrationDestination);
+        migrationNotifiers.push(migrationNotifier);
+      }
+    });
+
+    context('no stake', async () => {
+      const stakeOwner = accounts[3];
+
+      it('should not allow to migrate', async () => {
+        const migrationDestination = migrationDestinations[0];
+        await expectRevert(staking.migrateStakedTokens(migrationDestination, { from: stakeOwner }),
+          'StakingContract::migrateStakedTokens - no staked tokens');
+      });
+    });
+
+    context('with stake', async () => {
+      const stake = new BN(1000);
+      const stakeOwner = accounts[4];
+
+      beforeEach(async () => {
+        await token.assign(stakeOwner, stake);
+        await token.approve(staking.getAddress(), stake, { from: stakeOwner });
+        await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
+      });
+
+      it('should allow to migrate', async () => {
+        await testMigration(staking, notifier, stakeOwner, migrationDestinations[0], migrationNotifiers[0]);
+      });
+
+      it('should only allow to migrate to an approved migration destination', async () => {
+        const notApprovedMigrationDestination = accounts[8];
+        await expectRevert(staking.migrateStakedTokens(notApprovedMigrationDestination, { from: stakeOwner }),
+          "StakingContract::migrateStakedTokens - migration destination wasn't approved");
+
+        for (let i = 0; i < migrationDestinations.length; ++i) {
+          const migrationDestination = migrationDestinations[i];
+          const migrationNotifier = migrationNotifiers[i];
+          const tx = await staking.migrateStakedTokens(migrationDestination, { from: stakeOwner });
+          expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake });
+          expect(await notifier.getCalledWith()).to.be.empty();
+          expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
+
+          await token.assign(stakeOwner, stake);
+          await token.approve(staking.getAddress(), stake, { from: stakeOwner });
+          await staking.stake(stake, { from: stakeOwner });
+          await notifier.reset();
+        }
+      });
+
+      it('should not allow to migrate to a staking contract with a different token', async () => {
+        const token2 = await TestERC20.new();
+        const migrationDestination = await StakingContract.new(cooldown, migrationManager, emergencyManager, token2);
+        await staking.addMigrationDestination(migrationDestination, { from: migrationManager });
+
+        await expectRevert(staking.migrateStakedTokens(migrationDestination, { from: stakeOwner }),
+          'StakingContract::migrateStakedTokens - staked tokens must be the same');
+      });
+
+      context('with unstaked stake', async () => {
+        const unstaked = new BN(100);
+        beforeEach(async () => {
+          await staking.unstake(unstaked, { from: stakeOwner });
+          await notifier.reset();
+        });
+
+        it('should only migrate tokens not in cooldown', async () => {
+          await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
+        });
+
+        context('pending withdrawal', async () => {
+          beforeEach(async () => {
+            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
+            await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
+            expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
+          });
+
+          it('should only migrate tokens not in cooldown', async () => {
+            await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
+          });
+
+          context('fully withdrawn', async () => {
+            beforeEach(async () => {
+              await staking.withdraw({ from: stakeOwner });
+              await notifier.reset();
+            });
+
+            it('should only migrate tokens not in cooldown', async () => {
+              await testMigration(staking, notifier, stakeOwner, migrationDestinations[1], migrationNotifiers[1]);
+            });
+          });
+        });
+      });
+
+      context.skip('stopped accepting new stake', async () => {
+        it('should allow to migrate', async () => {
+        });
+      });
+
+      context.skip('released all stake', async () => {
+        it('should not allow to migrate', async () => {
+        });
+      });
+    });
+  });
 });
