@@ -74,7 +74,7 @@ class StakingContract extends BaseContract {
   }
 
   async getToken() {
-    return this.contract.token.call();
+    return this.contract.getToken.call();
   }
 
   async notifyStakeChange(stakeOwner) {
