@@ -765,6 +765,38 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('unstaking', async () => {
+    const testUnstaking = async (staking, notifier, stakeOwner, unstakeAmount) => {
+      const getState = async () => {
+        return {
+          stakingBalance: await token.balanceOf(staking.getAddress()),
+          stakeOwnerBalance: await token.balanceOf(stakeOwner),
+          stakeOwnerStake: await staking.getStakeBalanceOf(stakeOwner),
+          stakeOwnerUnstakedStatus: await staking.getUnstakeStatus(stakeOwner),
+          totalStakedTokens: await staking.getTotalStakedTokens(),
+        };
+      };
+
+      const prevState = await getState();
+
+      await notifier.reset();
+
+      const tx = await staking.unstake(unstakeAmount, { from: stakeOwner });
+      expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: unstakeAmount });
+      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      const currentState = await getState();
+
+      const now = await time.latest();
+      expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance);
+      expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.sub(unstakeAmount));
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
+        .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount.add(unstakeAmount));
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
+        .closeTo(now.add(await staking.getCooldownPeriod()), TIME_ERROR);
+      expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.sub(unstakeAmount));
+    };
+
     let staking;
     let notifier;
     const cooldown = duration.days(1);
@@ -795,50 +827,16 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should allow to partially unstake tokens', async () => {
-        const prevStakeOwnerStake = await staking.getStakeBalanceOf(stakeOwner);
-        const prevTotalStakedTokens = await staking.getTotalStakedTokens();
-
-        const unstake1 = new BN(100);
-        const tx1 = await staking.unstake(unstake1, { from: stakeOwner });
-        expectEvent.inLogs(tx1.logs, EVENTS.unstaked, { stakeOwner, amount: unstake1 });
-        expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
-
-        let totalUnstaked = unstake1;
-        let now = await time.latest();
-        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerStake.sub(totalUnstaked));
-        let unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-        expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(totalUnstaked);
-        expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
-        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(totalUnstaked));
+        await testUnstaking(staking, notifier, stakeOwner, new BN(100));
 
         // Skip some time ahead in order to make sure that the following operation properly resets cooldown end time.
         await time.increase(duration.hours(6));
 
-        const unstake2 = new BN(500);
-        const tx2 = await staking.unstake(unstake2, { from: stakeOwner });
-        expectEvent.inLogs(tx2.logs, EVENTS.unstaked, { stakeOwner, amount: unstake2 });
-        expect(await notifier.getCalledWith()).to.have.members([stakeOwner, stakeOwner]);
-
-        totalUnstaked = totalUnstaked.add(unstake2);
-        now = await time.latest();
-        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerStake.sub(totalUnstaked));
-        unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-        expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(totalUnstaked);
-        expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
-        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(totalUnstaked));
+        await testUnstaking(staking, notifier, stakeOwner, new BN(500));
       });
 
       it('should allow to unstake all tokens', async () => {
-        const tx = await staking.unstake(stake, { from: stakeOwner });
-        expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: stake });
-        expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
-
-        const now = await time.latest();
-        expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
-        const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-        expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(stake);
-        expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
-        expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(new BN(0));
+        await testUnstaking(staking, notifier, stakeOwner, stake);
       });
 
       it('should not allow to unstake 0 tokens', async () => {
@@ -877,17 +875,7 @@ contract('StakingContract', (accounts) => {
             await staking.stake(newStake, { from: stakeOwner });
             await notifier.reset();
 
-            const prevStakeOwnerStake = await staking.getStakeBalanceOf(stakeOwner);
-            const prevTotalStakedTokens = await staking.getTotalStakedTokens();
-
-            await staking.unstake(newStake, { from: stakeOwner });
-
-            const now = await time.latest();
-            expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerStake.sub(newStake));
-            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-            expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(newStake);
-            expect(unstakedStatus.cooldownEndTime).to.be.bignumber.closeTo(now.add(cooldown), TIME_ERROR);
-            expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens.sub(newStake));
+            await testUnstaking(staking, notifier, stakeOwner, newStake);
           });
         });
       });
