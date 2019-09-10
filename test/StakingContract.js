@@ -385,7 +385,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('staking', async () => {
-    const testStake = async (staking, notifier, stakeOwner, stake, from) => {
+    const testStaking = async (staking, notifier, stakeOwner, stake, from) => {
       const getState = async () => {
         const state = {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -462,7 +462,7 @@ contract('StakingContract', (accounts) => {
           await token.assign(stakeOwner, stake);
           await token.approve(staking.getAddress(), stake, { from: stakeOwner });
 
-          await testStake(staking, notifier, stakeOwner, stake, stakeOwner);
+          await testStaking(staking, notifier, stakeOwner, stake, stakeOwner);
         }
       });
 
@@ -477,7 +477,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow to stake on behalf of a different staker', async () => {
-          await testStake(staking, notifier, stakeOwner2, stake, stakeOwner);
+          await testStaking(staking, notifier, stakeOwner2, stake, stakeOwner);
         });
 
         it('should not allow to stake more tokens than the staker has', async () => {
@@ -704,7 +704,7 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, newStake);
         await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-        await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
+        await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
       });
 
       context('with unstaked tokens', async () => {
@@ -718,7 +718,7 @@ contract('StakingContract', (accounts) => {
           await token.assign(stakeOwner, newStake);
           await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-          await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
+          await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
         });
 
         context('pending withdrawal', async () => {
@@ -733,7 +733,7 @@ contract('StakingContract', (accounts) => {
             await token.assign(stakeOwner, newStake);
             await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-            await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
+            await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
           });
 
           context('fully withdrawn', async () => {
@@ -746,7 +746,7 @@ contract('StakingContract', (accounts) => {
               await token.assign(stakeOwner, newStake);
               await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-              await testStake(staking, notifier, stakeOwner, newStake, stakeOwner);
+              await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
             });
           });
         });
