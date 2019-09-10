@@ -271,7 +271,25 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('management migration destinations', async () => {
+  describe('migration destinations management', async () => {
+    const testAddMigrationDestination = async (staking, destination) => {
+      expect(await staking.isApprovedStakingContract(destination)).to.be.false();
+
+      const tx = await staking.addMigrationDestination(destination, { from: migrationManager });
+      expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationAdded, { stakingContract: destination });
+
+      expect(await staking.isApprovedStakingContract(destination)).to.be.true();
+    };
+
+    const testRemoveMigrationDestination = async (staking, destination) => {
+      expect(await staking.isApprovedStakingContract(destination)).to.be.true();
+
+      const tx = await staking.removeMigrationDestination(destination, { from: migrationManager });
+      expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationRemoved, { stakingContract: destination });
+
+      expect(await staking.isApprovedStakingContract(destination)).to.be.false();
+    };
+
     const migrationDestinations = accounts.slice(0, MAX_APPROVED_STAKING_CONTRACTS);
 
     let staking;
@@ -300,12 +318,7 @@ contract('StakingContract', (accounts) => {
 
       it('should add new staking contracts', async () => {
         for (const destination of migrationDestinations) {
-          expect(await staking.isApprovedStakingContract(destination)).to.be.false();
-
-          const tx = await staking.addMigrationDestination(destination, { from: sender });
-          expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationAdded, { stakingContract: destination });
-
-          expect(await staking.isApprovedStakingContract(destination)).to.be.true();
+          await testAddMigrationDestination(staking, destination);
         }
 
         expect(await staking.getApprovedStakingContracts()).to.have.members(migrationDestinations);
@@ -338,15 +351,9 @@ contract('StakingContract', (accounts) => {
       it('should not allow to add again a previously removed contract', async () => {
         const destination = migrationDestinations[0];
 
-        expect(await staking.isApprovedStakingContract(destination)).to.be.false();
-        await staking.addMigrationDestination(destination, { from: sender });
-        expect(await staking.isApprovedStakingContract(destination)).to.be.true();
-
-        await staking.removeMigrationDestination(destination, { from: sender });
-        expect(await staking.isApprovedStakingContract(destination)).to.be.false();
-
-        await staking.addMigrationDestination(destination, { from: sender });
-        expect(await staking.isApprovedStakingContract(destination)).to.be.true();
+        await testAddMigrationDestination(staking, destination);
+        await testRemoveMigrationDestination(staking, destination);
+        await testAddMigrationDestination(staking, destination);
       });
 
       it('should remove contracts', async () => {
@@ -355,12 +362,7 @@ contract('StakingContract', (accounts) => {
         }
 
         for (const destination of migrationDestinations) {
-          expect(await staking.isApprovedStakingContract(destination)).to.be.true();
-
-          const tx = await staking.removeMigrationDestination(destination, { from: sender });
-          expectEvent.inLogs(tx.logs, EVENTS.migrationDestinationRemoved, { stakingContract: destination });
-
-          expect(await staking.isApprovedStakingContract(destination)).to.be.false();
+          await testRemoveMigrationDestination(staking, destination);
         }
 
         expect(await staking.getApprovedStakingContracts()).to.be.empty();
