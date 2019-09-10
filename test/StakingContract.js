@@ -959,7 +959,7 @@ contract('StakingContract', (accounts) => {
 
       context('with unstaked stake', async () => {
         beforeEach(async () => {
-          await staking.unstake(BN(100), { from: stakeOwner });
+          await staking.unstake(new BN(100), { from: stakeOwner });
           await notifier.reset();
         });
 
