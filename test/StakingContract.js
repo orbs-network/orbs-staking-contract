@@ -893,6 +893,35 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('withdrawl', async () => {
+    const testWithdrawl = async (staking, notifier, stakeOwner, unstakedAmount) => {
+      const getState = async () => {
+        return {
+          stakingBalance: await token.balanceOf(staking.getAddress()),
+          stakeOwnerBalance: await token.balanceOf(stakeOwner),
+          stakeOwnerStake: await staking.getStakeBalanceOf(stakeOwner),
+          stakeOwnerUnstakedStatus: await staking.getUnstakeStatus(stakeOwner),
+          totalStakedTokens: await staking.getTotalStakedTokens(),
+        };
+      };
+
+      const prevState = await getState();
+
+      await notifier.reset();
+
+      const tx = await staking.withdraw({ from: stakeOwner });
+      expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: unstakedAmount });
+      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      const currentState = await getState();
+
+      expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(unstakedAmount));
+      expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance.add(unstakedAmount));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake);
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
+      expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
+      expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens);
+    };
+
     let staking;
     let notifier;
     const cooldown = duration.days(1);
@@ -947,20 +976,7 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should allow to withdraw all tokens', async () => {
-            const prevStakingBalance = await token.balanceOf(staking.getAddress());
-            const prevStakeOwnerBalance = await token.balanceOf(stakeOwner);
-            const prevTotalStakedTokens = await staking.getTotalStakedTokens();
-
-            const tx = await staking.withdraw({ from: stakeOwner });
-            expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: unstaked });
-            expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
-
-            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(prevStakingBalance.sub(unstaked));
-            expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(prevStakeOwnerBalance.add(unstaked));
-            expect(await staking.getTotalStakedTokens()).to.be.bignumber.eq(prevTotalStakedTokens);
-            const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
-            expect(unstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
-            expect(unstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
+            await testWithdrawl(staking, notifier, stakeOwner, unstaked);
           });
 
           context('fully withdrawn', async () => {
