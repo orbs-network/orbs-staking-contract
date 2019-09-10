@@ -64,7 +64,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('setting the migration manager', async () => {
-    const testMigrationManagerSetting = async (staking, from, to) => {
+    const testSetMigrationManager = async (staking, from, to) => {
       expect(await staking.getMigrationManager()).to.eql(from);
 
       const tx = await staking.setMigrationManager(to, { from });
@@ -91,7 +91,7 @@ contract('StakingContract', (accounts) => {
     context('migration manager', async () => {
       it('should set to a new address', async () => {
         const newMigrationManager = accounts[3];
-        await testMigrationManagerSetting(staking, migrationManager, newMigrationManager);
+        await testSetMigrationManager(staking, migrationManager, newMigrationManager);
       });
 
       it('should not allow to change to 0', async () => {
@@ -107,7 +107,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('setting the emergency manager', async () => {
-    const testEmergencyManagerSetting = async (staking, from, to) => {
+    const testSetEmergencyManager = async (staking, from, to) => {
       expect(await staking.getEmergencyManager()).to.eql(from);
 
       const tx = await staking.setEmergencyManager(to, { from });
@@ -137,7 +137,7 @@ contract('StakingContract', (accounts) => {
 
       it('should set to a new address', async () => {
         const newEmergencyManager = accounts[3];
-        await testEmergencyManagerSetting(staking, emergencyManager, newEmergencyManager);
+        await testSetEmergencyManager(staking, emergencyManager, newEmergencyManager);
       });
 
       it('should not allow to change to 0', async () => {
