@@ -180,12 +180,10 @@ contract StakingContract is IStakingContract {
     /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown
     /// period, after which msg.sender would be able to withdraw all of his tokens.
     function unstake(uint256 _amount) external {
-        address stakeOwner = msg.sender;
-
         require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
 
+        address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
-
         uint256 stakedAmount = stakeData.amount;
         uint256 cooldownAmount = stakeData.cooldownAmount;
         uint256 cooldownEndTime = stakeData.cooldownEndTime;
@@ -216,7 +214,6 @@ contract StakingContract is IStakingContract {
     /// passed.
     function withdraw() external {
         address stakeOwner = msg.sender;
-
         Stake storage stakeData = stakes[stakeOwner];
         uint256 cooldownAmount = stakeData.cooldownAmount;
         uint256 cooldownEndTime = stakeData.cooldownEndTime;
@@ -238,7 +235,6 @@ contract StakingContract is IStakingContract {
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender
     function restake() external {
         address stakeOwner = msg.sender;
-
         Stake storage stakeData = stakes[stakeOwner];
 
         require(stakeData.cooldownAmount > 0, "StakingContract::restake - no unstaked tokens");
