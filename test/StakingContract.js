@@ -152,8 +152,15 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('setting the stake change notifier', async () => {
-    const newNotifier = accounts[3];
+  describe('stake change notifier management', async () => {
+    const testSetStakeChangeNotifier = async (staking, from, to) => {
+      expect(await staking.getStakeChangeNotifier()).to.eql(from);
+
+      const tx = await staking.setStakeChangeNotifier(to, { from: migrationManager });
+      expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: to });
+
+      expect(await staking.getStakeChangeNotifier()).to.eql(to);
+    };
 
     let staking;
     beforeEach(async () => {
@@ -165,6 +172,7 @@ contract('StakingContract', (accounts) => {
       const sender = accounts[1];
 
       it('should not allow to set', async () => {
+        const newNotifier = accounts[3];
         await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
           'StakingContract: caller is not the migration manager');
       });
@@ -174,29 +182,23 @@ contract('StakingContract', (accounts) => {
       const sender = migrationManager;
 
       it('should set to a new address', async () => {
-        expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
-
-        const tx = await staking.setStakeChangeNotifier(newNotifier, { from: sender });
-        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: newNotifier });
-
-        expect(await staking.getStakeChangeNotifier()).to.eql(newNotifier);
+        const newNotifier = accounts[3];
+        await testSetStakeChangeNotifier(staking, constants.ZERO_ADDRESS, newNotifier);
       });
 
       context('already set', async () => {
         beforeEach(async () => {
+          const newNotifier = accounts[2];
           await staking.setStakeChangeNotifier(newNotifier, { from: sender });
         });
 
         it('should allow to reset to 0', async () => {
-          expect(await staking.getStakeChangeNotifier()).to.eql(newNotifier);
-
-          const tx = await staking.setStakeChangeNotifier(constants.ZERO_ADDRESS, { from: sender });
-          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: constants.ZERO_ADDRESS });
-
-          expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
+          const newNotifier = accounts[6];
+          await testSetStakeChangeNotifier(staking, newNotifier, constants.ZERO_ADDRESS);
         });
 
         it('should not allow to change to the same address', async () => {
+          const newNotifier = accounts[3];
           await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
             'StakingContract::setStakeChangeNotifier - new address must be different');
         });
@@ -205,7 +207,13 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('stake change notification', async () => {
-    const stakeOwner = accounts[6];
+    const testSetStakeChangeNotifier = async (staking, notifier, from, to) => {
+      expect(await notifier.getCalledWith()).to.have.members(from);
+
+      await staking.notifyStakeChange(to);
+
+      expect(await notifier.getCalledWith()).to.have.members([to]);
+    };
 
     let staking;
     beforeEach(async () => {
@@ -215,6 +223,7 @@ contract('StakingContract', (accounts) => {
 
     context('no notifier', async () => {
       it('should succeed', async () => {
+        const stakeOwner = accounts[6];
         const tx = await staking.notifyStakeChange(stakeOwner);
         expect(tx.logs).to.be.empty();
       });
@@ -227,6 +236,7 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should emit a failing event', async () => {
+        const stakeOwner = accounts[5];
         const tx = await staking.notifyStakeChange(stakeOwner);
         expect(tx.logs).to.be.empty();
       });
@@ -240,11 +250,8 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should succeed', async () => {
-        expect(await notifier.getCalledWith()).to.be.empty();
-
-        await staking.notifyStakeChange(stakeOwner);
-
-        expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+        const stakeOwner = accounts[3];
+        await testSetStakeChangeNotifier(staking, notifier, [], stakeOwner);
       });
 
       context('reverting', async () => {
@@ -255,6 +262,7 @@ contract('StakingContract', (accounts) => {
         it('should handle revert and emit a failing event', async () => {
           expect(await notifier.getCalledWith()).to.be.empty();
 
+          const stakeOwner = accounts[3];
           const tx = await staking.notifyStakeChange(stakeOwner);
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.getAddress() });
 
