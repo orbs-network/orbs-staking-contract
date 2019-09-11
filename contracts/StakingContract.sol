@@ -355,7 +355,7 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Returns the address of the underlying staked token.
-    function getToken() view external returns (IERC20) {
+    function getToken() external view returns (IERC20) {
         return token;
     }
 
