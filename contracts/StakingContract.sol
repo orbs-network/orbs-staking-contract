@@ -329,10 +329,10 @@ contract StakingContract is IStakingContract {
         _newStakingContract.acceptMigration(stakeOwner, amount);
     }
 
-    /// @dev Stakes ORBS tokens on behalf of a list of addresses.
-    /// @param _totalAmount uint256 The total amount of tokens to stake.
-    /// @param _stakeOwners address[ The addresses of the stake owners.
-    /// @param _amounts uint256[] The amounts of tokens to stake.
+    /// @dev Distributes staking rewards to a list of addresses by adding the rewards to their stakes directly.
+    /// @param _totalAmount uint256 The total amount of rewards to distributes.
+    /// @param _stakeOwners address[] The addresses of the stake owners.
+    /// @param _amounts uint256[] The amounts of the rewards.
     ///
     /// Notes: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     /// Since this is a convenience method, we aren't concerned of reaching block gas limit by using large lists. We
