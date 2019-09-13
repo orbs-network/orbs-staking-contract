@@ -6,15 +6,15 @@ contract TestERC20 is ERC20 {
     bool public failApprove;
     bool public failTransfer;
 
-    function setFailApprove(bool _failApprove) public {
+    function setFailApprove(bool _failApprove) external {
         failApprove = _failApprove;
     }
 
-    function setFailTransfer(bool _failTransfer) public {
+    function setFailTransfer(bool _failTransfer) external {
         failTransfer = _failTransfer;
     }
 
-    function assign(address _account, uint256 _value) public {
+    function assign(address _account, uint256 _value) external {
         _burn(_account, balanceOf(_account));
         _mint(_account, _value);
     }
