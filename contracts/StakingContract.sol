@@ -92,6 +92,12 @@ contract StakingContract is IStakingContract {
         _;
     }
 
+    modifier onlyWhenStakesReleased() {
+        require(releasingAllStakes, "StakingContract: not releasing all stakes");
+
+        _;
+    }
+
     modifier onlyWhenStakesNotReleased() {
         require(!releasingAllStakes, "StakingContract: releasing all stakes");
 
@@ -242,28 +248,8 @@ contract StakingContract is IStakingContract {
     /// period has passed (unless the contract was requested to release all stakes).
     function withdraw() external {
         address stakeOwner = msg.sender;
-        Stake storage stakeData = stakes[stakeOwner];
-        uint256 amount = stakeData.cooldownAmount;
 
-        if (!releasingAllStakes) {
-            require(amount > 0, "StakingContract::withdraw - no unstaked tokens");
-            require(stakeData.cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
-        } else {
-            // If the contract was requested to release all stakes - allow to withdraw all staked and unstaked tokens.
-            uint256 stakedAmount = stakeData.amount;
-            amount = amount.add(stakedAmount);
-
-            require(amount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
-
-            stakeData.amount = 0;
-
-            totalStakedTokens = totalStakedTokens.sub(stakedAmount);
-        }
-
-        stakeData.cooldownAmount = 0;
-        stakeData.cooldownEndTime = 0;
-
-        require(token.transfer(stakeOwner, amount), "StakingContract::withdraw - couldn't transfer stake");
+        uint256 amount = withdraw(stakeOwner);
 
         emit Withdrew(stakeOwner, amount);
 
@@ -416,6 +402,26 @@ contract StakingContract is IStakingContract {
         emit ReleasedAllStakes();
     }
 
+    /// @dev Requests withdraw of released tokens of a list of addresses.
+    /// @param _stakeOwners address[] The addresses of the stake owners.
+    function withdrawReleasedStakes(address[] _stakeOwners) onlyWhenStakesReleased external {
+        uint256 stakeOwnersLength = _stakeOwners.length;
+        for (uint i = 0; i < stakeOwnersLength; ++i) {
+            address stakeOwner = _stakeOwners[i];
+
+            uint256 amount = withdraw(stakeOwner);
+
+            emit Withdrew(stakeOwner, amount);
+        }
+
+        // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
+        // that any external call is made after every check and effect have took place. Unfortunately, this results in
+        // duplicated the loop.
+        for (i = 0; i < stakeOwnersLength; ++i) {
+            notifyStakeChange(_stakeOwners[i]);
+        }
+    }
+
     /// @dev Returns whether a specific staking contract was approved.
     /// @param _stakingContract IStakingContract The staking contract to look for.
     function isApprovedStakingContract(IStakingContract _stakingContract) public view returns (bool) {
@@ -457,6 +463,37 @@ contract StakingContract is IStakingContract {
         stakeData.amount = stakeData.amount.add(_amount);
 
         totalStakedTokens = totalStakedTokens.add(_amount);
+    }
+
+    /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner.
+    ///
+    /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
+    /// period has passed (unless the contract was requested to release all stakes).
+    function withdraw(address _stakeOwner) private returns (uint256 amount) {
+        require(_stakeOwner != address(0), "StakingContract::withdraw - stake owner can't be 0");
+
+        Stake storage stakeData = stakes[_stakeOwner];
+        amount = stakeData.cooldownAmount;
+
+        if (!releasingAllStakes) {
+            require(amount > 0, "StakingContract::withdraw - no unstaked tokens");
+            require(stakeData.cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
+        } else {
+            // If the contract was requested to release all stakes - allow to withdraw all staked and unstaked tokens.
+            uint256 stakedAmount = stakeData.amount;
+            amount = amount.add(stakedAmount);
+
+            require(amount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
+
+            stakeData.amount = 0;
+
+            totalStakedTokens = totalStakedTokens.sub(stakedAmount);
+        }
+
+        stakeData.cooldownAmount = 0;
+        stakeData.cooldownEndTime = 0;
+
+        require(token.transfer(_stakeOwner, amount), "StakingContract::withdraw - couldn't transfer stake");
     }
 
     /// @dev Returns an index of an existing approved staking contract.

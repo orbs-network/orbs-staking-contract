@@ -149,6 +149,10 @@ class StakingContract extends BaseContract {
     return this.contract.releaseAllStakes(options);
   }
 
+  async withdrawReleasedStakes(stakeOwners) {
+    return this.contract.withdrawReleasedStakes(stakeOwners.map((s) => StakingContract.getAddress(s)));
+  }
+
   static getEvents() {
     return {
       staked: 'Staked',

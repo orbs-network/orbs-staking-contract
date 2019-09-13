@@ -566,6 +566,7 @@ contract('StakingContract', (accounts) => {
 
         it('should allow to stake on behalf of different stakers in batch', async () => {
           const tx = await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
+          expect(await notifier.getCalledWith()).to.have.members(stakers);
 
           for (let i = 0; i < stakers.length; ++i) {
             const stakeOwner = stakers[i];
@@ -576,8 +577,6 @@ contract('StakingContract', (accounts) => {
             expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
             expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
           }
-
-          expect(await notifier.getCalledWith()).to.have.members(stakers);
 
           expect(await token.balanceOf(caller)).to.be.bignumber.eq(new BN(0));
           expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake);
@@ -1411,7 +1410,9 @@ contract('StakingContract', (accounts) => {
           'StakingContract: caller is not the emergency manager');
       });
 
-      it.skip('should not allow to batch withdraw all stakes', async () => {
+      it('should not allow to batch withdraw all stakes', async () => {
+        await expectRevert(staking.withdrawReleasedStakes(accounts),
+          'StakingContract: not releasing all stakes');
       });
     });
 
@@ -1488,9 +1489,6 @@ contract('StakingContract', (accounts) => {
             expect(currentState.totalStakedTokens).to.be.bignumber.eq(new BN(0));
           });
 
-          it.skip('should allow to batch withdraw all stakes', async () => {
-          });
-
           it('should not allow to request to stop accepting new stake', async () => {
             await expectRevert(staking.stopAcceptingNewStakes({ from: sender }),
               'StakingContract: not accepting new stakes');
@@ -1499,6 +1497,130 @@ contract('StakingContract', (accounts) => {
           it('should not allow to request again to release all stakes', async () => {
             await expectRevert(staking.releaseAllStakes({ from: sender }),
               'StakingContract: releasing all stakes');
+          });
+        });
+      });
+
+      describe('batch withdraw', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        context('with unstaked tokens', async () => {
+          const caller = accounts[10];
+          const stakers = accounts.slice(0, 10);
+          const stakeAmounts = [
+            new BN(2481), new BN(5000), new BN(6105), new BN(5475), new BN(2249),
+            new BN(7615), new BN(3087), new BN(1501), new BN(620), new BN(7198),
+          ];
+          const unstakeAmounts = [
+            new BN(481), new BN(1000), new BN(105), new BN(475), new BN(249),
+            new BN(615), new BN(87), new BN(501), new BN(20), new BN(198),
+          ];
+
+          beforeEach(async () => {
+            for (let i = 0; i < stakers.length; ++i) {
+              const staker = stakers[i];
+              const stakedAmount = stakeAmounts[i];
+              const unstakedAmount = unstakeAmounts[i];
+
+              await token.assign(staker, stakedAmount);
+              await token.approve(staking.getAddress(), stakedAmount, { from: staker });
+              await staking.stake(stakedAmount, { from: staker });
+              await staking.unstake(unstakedAmount, { from: staker });
+            }
+          });
+
+          it('should not allow to batch withdraw all stakes', async () => {
+            await expectRevert(staking.withdrawReleasedStakes(accounts),
+              'StakingContract: not releasing all stakes');
+          });
+
+          context('released all stake', async () => {
+            beforeEach(async () => {
+              const tx = await staking.releaseAllStakes({ from: sender });
+              expectEvent.inLogs(tx.logs, EVENTS.releasedAllStakes);
+              expect(await staking.releasingAllStakes()).to.be.true();
+            });
+
+            it('should allow to batch withdraw all stakes', async () => {
+              const getStakeOwnerState = async (stakeOwner) => {
+                return {
+                  stakeOwnerBalance: await token.balanceOf(stakeOwner),
+                  stakeOwnerStake: await staking.getStakeBalanceOf(stakeOwner),
+                  stakeOwnerUnstakedStatus: await staking.getUnstakeStatus(stakeOwner),
+                };
+              };
+
+              const getState = async () => {
+                return {
+                  stakingBalance: await token.balanceOf(staking.getAddress()),
+                  totalStakedTokens: await staking.getTotalStakedTokens(),
+                };
+              };
+
+              const prevState = await getState();
+              const prevStakeOwnersStates = [];
+              for (let i = 0; i < stakers.length; ++i) {
+                const stakeOwner = stakers[i];
+                prevStakeOwnersStates.push(await getStakeOwnerState(stakeOwner));
+              }
+
+              await notifier.reset();
+
+              const tx = await staking.withdrawReleasedStakes(stakers, { from: caller });
+              expect(await notifier.getCalledWith()).to.have.members(stakers);
+
+              let totalWithdrawn = new BN(0);
+              let totalReleasedStake = new BN(0);
+
+              for (let i = 0; i < stakers.length; ++i) {
+                const staker = stakers[i];
+                const stakedAmount = stakeAmounts[i];
+                const unstakedAmount = unstakeAmounts[i];
+
+                expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner: staker, amount: stakedAmount });
+
+                const prevStakeOwnersState = prevStakeOwnersStates[i];
+                const currentStakeOwnerState = await getStakeOwnerState(staker);
+
+                expect(currentStakeOwnerState.stakeOwnerBalance).to.be.bignumber
+                  .eq(prevStakeOwnersState.stakeOwnerBalance.add(stakedAmount));
+                expect(currentStakeOwnerState.stakeOwnerStake).to.be.bignumber.eq(new BN(0));
+                expect(currentStakeOwnerState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
+                expect(currentStakeOwnerState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
+
+                totalWithdrawn = totalWithdrawn.add(stakedAmount);
+                totalReleasedStake = totalReleasedStake.add(stakedAmount.sub(unstakedAmount));
+              }
+
+              const currentState = await getState();
+
+              expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(totalWithdrawn));
+              expect(currentState.totalStakedTokens).to.be.bignumber
+                .eq(prevState.totalStakedTokens.sub(totalReleasedStake));
+            });
+
+            it('should revert when trying to withdraw for a 0 address', async () => {
+              const stakersWithZeroAddress = stakers.slice();
+              stakersWithZeroAddress[3] = constants.ZERO_ADDRESS;
+
+              await expectRevert(staking.withdrawReleasedStakes(stakersWithZeroAddress, { from: caller }),
+                "StakingContract::withdraw - stake owner can't be 0");
+            });
+
+            it('should revert when trying to withdraw for an address without any stake', async () => {
+              const notStaker = accounts[25];
+              expect(await staking.getStakeBalanceOf(notStaker)).to.be.bignumber.eq(new BN(0));
+
+              const stakersWithNoStaker = stakers.slice();
+              stakersWithNoStaker[8] = notStaker;
+
+              await expectRevert(staking.withdrawReleasedStakes(stakersWithNoStaker, { from: caller }),
+                'StakingContract::withdraw - no staked or unstaked tokens');
+            });
           });
         });
       });
