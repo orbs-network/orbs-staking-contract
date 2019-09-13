@@ -116,7 +116,7 @@ contract StakingContract is IStakingContract {
         require(_cooldownPeriod > 0, "StakingContract::ctor - cooldown period must be greater than 0");
         require(_migrationManager != address(0), "StakingContract::ctor - migration manager must not be 0");
         require(_emergencyManager != address(0), "StakingContract::ctor - emergency manager must not be 0");
-        require(_token != address(0), "StakingContract::ctor - ORBS token must not be 0");
+        require(address(_token) != address(0), "StakingContract::ctor - ORBS token must not be 0");
 
         cooldownPeriod = _cooldownPeriod;
         migrationManager = _migrationManager;
@@ -164,7 +164,8 @@ contract StakingContract is IStakingContract {
     /// @dev Adds a new contract to the list of approved staking contracts migration destinations.
     /// @param _newStakingContract IStakingContract The new contract to add.
     function addMigrationDestination(IStakingContract _newStakingContract) external onlyMigrationManager {
-        require(_newStakingContract != address(0), "StakingContract::addMigrationDestination - address must not be 0");
+        require(address(_newStakingContract) != address(0),
+            "StakingContract::addMigrationDestination - address must not be 0");
         require(approvedStakingContracts.length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
             "StakingContract::addMigrationDestination - can't add more staking contracts");
 
@@ -181,7 +182,8 @@ contract StakingContract is IStakingContract {
     /// @dev Removes a contract from the list of approved staking contracts migration destinations.
     /// @param _stakingContract IStakingContract The contract to remove.
     function removeMigrationDestination(IStakingContract _stakingContract) external onlyMigrationManager {
-        require(_stakingContract != address(0), "StakingContract::removeMigrationDestination - address must not be 0");
+        require(address(_stakingContract) != address(0),
+            "StakingContract::removeMigrationDestination - address must not be 0");
 
         // Check for existence.
         (uint i, bool exists) = findApprovedStakingContractIndex(_stakingContract);
@@ -313,7 +315,7 @@ contract StakingContract is IStakingContract {
         stakeData.amount = 0;
         totalStakedTokens = totalStakedTokens.sub(amount);
 
-        require(token.approve(_newStakingContract, amount),
+        require(token.approve(address(_newStakingContract), amount),
             "StakingContract::migrateStakedTokens - couldn't approve transfer");
 
         emit MigratedStake(stakeOwner, amount);
@@ -435,7 +437,7 @@ contract StakingContract is IStakingContract {
     /// @dev Notifies of stake change event.
     /// @param _stakeOwner address The address of the subject stake owner.
     function notifyStakeChange(address _stakeOwner) internal {
-        if (notifier == address(0)) {
+        if (address(notifier) == address(0)) {
             return;
         }
 
