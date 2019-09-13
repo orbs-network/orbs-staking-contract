@@ -344,7 +344,7 @@ contract StakingContract is IStakingContract {
             "StakingContract::distributeRewards - lists must be of the same size");
 
         uint i;
-        uint256 expectedTotalAmount;
+        uint256 expectedTotalAmount = 0;
         for (i = 0; i < amountsLength; ++i) {
             expectedTotalAmount = expectedTotalAmount.add(_amounts[i]);
         }
