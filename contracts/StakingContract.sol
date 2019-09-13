@@ -302,8 +302,6 @@ contract StakingContract is IStakingContract {
     function migrateStakedTokens(IStakingContract _newStakingContract) external onlyWhenStakesNotReleased {
         require(isApprovedStakingContract(_newStakingContract),
             "StakingContract::migrateStakedTokens - migration destination wasn't approved");
-        require(_newStakingContract.getToken() == token,
-            "StakingContract::migrateStakedTokens - staked tokens must be the same");
 
         address stakeOwner = msg.sender;
 
@@ -315,6 +313,8 @@ contract StakingContract is IStakingContract {
         stakeData.amount = 0;
         totalStakedTokens = totalStakedTokens.sub(amount);
 
+        require(_newStakingContract.getToken() == token,
+            "StakingContract::migrateStakedTokens - staked tokens must be the same");
         require(token.approve(address(_newStakingContract), amount),
             "StakingContract::migrateStakedTokens - couldn't approve transfer");
 
@@ -461,14 +461,14 @@ contract StakingContract is IStakingContract {
         require(_stakeOwner != address(0), "StakingContract::stake - stake owner can't be 0");
         require(_amount > 0, "StakingContract::stake - amount must be greater than 0");
 
-        // Transfer the tokens to the smart contract and update the stake owners list accordingly.
-        require(token.transferFrom(msg.sender, address(this), _amount),
-            "StakingContract::stake - insufficient allowance");
-
         Stake storage stakeData = stakes[_stakeOwner];
         stakeData.amount = stakeData.amount.add(_amount);
 
         totalStakedTokens = totalStakedTokens.add(_amount);
+
+        // Transfer the tokens to the smart contract and update the stake owners list accordingly.
+        require(token.transferFrom(msg.sender, address(this), _amount),
+            "StakingContract::stake - insufficient allowance");
     }
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner.
