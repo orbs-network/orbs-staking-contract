@@ -67,11 +67,11 @@ contract StakingContract is IStakingContract {
     event AcceptedMigration(address indexed stakeOwner, uint256 amount);
     event MigratedStake(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
-    event MigrationDestinationAdded(address indexed stakingContract);
-    event MigrationDestinationRemoved(address indexed stakingContract);
+    event MigrationDestinationAdded(IStakingContract indexed stakingContract);
+    event MigrationDestinationRemoved(IStakingContract indexed stakingContract);
     event EmergencyManagerUpdated(address indexed emergencyManager);
-    event StakeChangeNotifierUpdated(address indexed notifier);
-    event StakeChangeNotificationFailed(address indexed notifier);
+    event StakeChangeNotifierUpdated(IStakeChangeNotifier indexed notifier);
+    event StakeChangeNotificationFailed(IStakeChangeNotifier indexed notifier);
     event StoppedAcceptingNewStake();
     event ReleasedAllStakes();
 
