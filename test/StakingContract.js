@@ -1052,6 +1052,13 @@ contract('StakingContract', (accounts) => {
             await testWithdrawl(staking, notifier, stakeOwner);
           });
 
+          it('should not allow to withdraw if unable to transfer', async () => {
+            await token.setFailTransfer(true);
+
+            await expectRevert(staking.withdraw({ from: stakeOwner }),
+              "StakingContract::withdraw - couldn't transfer stake");
+          });
+
           context('after full withdrawl', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
@@ -1330,6 +1337,13 @@ contract('StakingContract', (accounts) => {
 
         await expectRevert(staking.migrateStakedTokens(migrationDestination, { from: stakeOwner }),
           'StakingContract::migrateStakedTokens - staked tokens must be the same');
+      });
+
+      it('should not allow to migrate if unable to approve', async () => {
+        await token.setFailApprove(true);
+
+        await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], { from: stakeOwner }),
+          "StakingContract::migrateStakedTokens - couldn't approve transfer");
       });
 
       context('with an unstaked stake', async () => {
