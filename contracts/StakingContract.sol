@@ -217,6 +217,7 @@ contract StakingContract is IStakingContract {
         require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
 
         address stakeOwner = msg.sender;
+
         Stake storage stakeData = stakes[stakeOwner];
         uint256 stakedAmount = stakeData.amount;
         uint256 cooldownAmount = stakeData.cooldownAmount;
@@ -260,11 +261,12 @@ contract StakingContract is IStakingContract {
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
     function restake() external onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
+
         Stake storage stakeData = stakes[stakeOwner];
-
-        require(stakeData.cooldownAmount > 0, "StakingContract::restake - no unstaked tokens");
-
         uint256 cooldownAmount = stakeData.cooldownAmount;
+
+        require(cooldownAmount > 0, "StakingContract::restake - no unstaked tokens");
+
         stakeData.amount = stakeData.amount.add(cooldownAmount);
         stakeData.cooldownAmount = 0;
         stakeData.cooldownEndTime = 0;
@@ -299,6 +301,7 @@ contract StakingContract is IStakingContract {
             "StakingContract::migrateStakedTokens - staked tokens must be the same");
 
         address stakeOwner = msg.sender;
+
         Stake storage stakeData = stakes[stakeOwner];
         uint256 amount = stakeData.amount;
 
@@ -329,13 +332,13 @@ contract StakingContract is IStakingContract {
 
         uint256 stakeOwnersLength = _stakeOwners.length;
         uint256 amountsLength = _amounts.length;
+
         require(stakeOwnersLength > 0 && amountsLength > 0,
             "StakingContract::distributeRewards - lists can't be empty");
         require(stakeOwnersLength == amountsLength,
             "StakingContract::distributeRewards - lists must be of the same size");
 
         uint i;
-
         uint256 expectedTotalAmount;
         for (i = 0; i < amountsLength; ++i) {
             expectedTotalAmount = expectedTotalAmount.add(_amounts[i]);
