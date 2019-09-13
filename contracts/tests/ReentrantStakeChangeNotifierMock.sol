@@ -24,7 +24,8 @@ contract ReentrantStakeChangeNotifierMock is StakeChangeNotifierMock {
     }
 
     function approve(address _spender, uint256 _amount) external {
-        token.approve(_spender, _amount);
+        require(token.approve(_spender, _amount),
+            "ReentrantStakeChangeNotifierMock::approve - couldn't approve transfer");
     }
 
     function stakeChange(address _stakerOwner) public {
