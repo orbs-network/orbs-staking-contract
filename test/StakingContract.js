@@ -565,7 +565,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow to stake on behalf of different stakers in batch', async () => {
-          const tx = await staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller });
+          const tx = await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
 
           for (let i = 0; i < stakers.length; ++i) {
             const stakeOwner = stakers[i];
@@ -586,38 +586,38 @@ contract('StakingContract', (accounts) => {
 
         it('should fail batch staking if token balance is insufficient', async () => {
           await token.assign(caller, totalStake.sub(new BN(1)));
-          await expectRevert.unspecified(staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller }));
+          await expectRevert.unspecified(staking.distributeRewards(totalStake, stakers, stakes, { from: caller }));
         });
 
         it('should fail batch staking if total batch amount is incorrect', async () => {
-          await expectRevert(staking.distributeBatchRewards(totalStake.add(new BN(1)), stakers, stakes,
-            { from: caller }), 'StakingContract::distributeBatchRewards - incorrect total amount');
-          await expectRevert(staking.distributeBatchRewards(totalStake.sub(new BN(1)), stakers, stakes,
-            { from: caller }), 'StakingContract::distributeBatchRewards - incorrect total amount');
+          await expectRevert(staking.distributeRewards(totalStake.add(new BN(1)), stakers, stakes,
+            { from: caller }), 'StakingContract::distributeRewards - incorrect total amount');
+          await expectRevert(staking.distributeRewards(totalStake.sub(new BN(1)), stakers, stakes,
+            { from: caller }), 'StakingContract::distributeRewards - incorrect total amount');
         });
 
         it('should fail batch staking if stake owners and amounts lists are in different sizes', async () => {
-          await expectRevert(staking.distributeBatchRewards(totalStake, stakers.slice(1), stakes,
-            { from: caller }), 'StakingContract::distributeBatchRewards - lists must be of the same size');
-          await expectRevert(staking.distributeBatchRewards(totalStake.sub(stakes[0]), stakers, stakes.slice(1),
-            { from: caller }), 'StakingContract::distributeBatchRewards - lists must be of the same size');
+          await expectRevert(staking.distributeRewards(totalStake, stakers.slice(1), stakes,
+            { from: caller }), 'StakingContract::distributeRewards - lists must be of the same size');
+          await expectRevert(staking.distributeRewards(totalStake.sub(stakes[0]), stakers, stakes.slice(1),
+            { from: caller }), 'StakingContract::distributeRewards - lists must be of the same size');
         });
 
         it('should fail batch staking if total token amount is 0', async () => {
-          await expectRevert(staking.distributeBatchRewards(new BN(0), stakers, stakes, { from: caller }),
-            'StakingContract::distributeBatchRewards - total amount must be greater than 0');
+          await expectRevert(staking.distributeRewards(new BN(0), stakers, stakes, { from: caller }),
+            'StakingContract::distributeRewards - total amount must be greater than 0');
         });
 
         it('should fail batch staking if one of the stake owners is a 0 address', async () => {
           const stakers2 = stakers.slice(0);
           stakers2[5] = constants.ZERO_ADDRESS;
-          await expectRevert(staking.distributeBatchRewards(totalStake, stakers2, stakes, { from: caller }),
+          await expectRevert(staking.distributeRewards(totalStake, stakers2, stakes, { from: caller }),
             "StakingContract::stake - stake owner can't be 0");
         });
 
         it('should fail batch staking if called with empty lists', async () => {
-          await expectRevert(staking.distributeBatchRewards(totalStake, [], [], { from: caller }),
-            "StakingContract::distributeBatchRewards - lists can't be empty");
+          await expectRevert(staking.distributeRewards(totalStake, [], [], { from: caller }),
+            "StakingContract::distributeRewards - lists can't be empty");
         });
 
         context('reentrant stake change notifier', async () => {
@@ -638,7 +638,7 @@ contract('StakingContract', (accounts) => {
             await reentrantNotifier.approve(staking, additionalStake, { from: caller });
             await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
 
-            await staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller });
+            await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
 
             // The notifier should have been called in this order:
             //     S[0], luckyStaker, S[1], luckyStaker, ... S[19], luckyStaker
@@ -666,7 +666,7 @@ contract('StakingContract', (accounts) => {
               await reentrantNotifier.approve(staking, additionalStake, { from: caller });
               await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
 
-              await staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller });
+              await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
 
               // The notifier should have been called in this order:
               //     S[0], luckyStaker, S[1], luckyStaker, ... S[18], luckyStaker
@@ -784,7 +784,7 @@ contract('StakingContract', (accounts) => {
         await token.assign(caller, totalStake);
         await token.approve(staking.getAddress(), totalStake, { from: caller });
 
-        await expectRevert(staking.distributeBatchRewards(totalStake, stakers, stakes, { from: caller }), msg);
+        await expectRevert(staking.distributeRewards(totalStake, stakers, stakes, { from: caller }), msg);
       });
     };
 

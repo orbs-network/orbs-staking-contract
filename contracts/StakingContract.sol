@@ -238,8 +238,8 @@ contract StakingContract is IStakingContract {
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender.
     ///
-    /// Note: Stake owner can withdraw their ORBS tokens only after they have unstaked them and the cooldown period has
-    /// passed.
+    /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
+    /// period has passed (unless the contract was requested to release all stakes).
     function withdraw() external {
         address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
@@ -337,16 +337,16 @@ contract StakingContract is IStakingContract {
     /// Notes: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     /// Since this is a convenience method, we aren't concerned of reaching block gas limit by using large lists. We
     /// assume that callers will be able to properly batch/paginate their requests.
-    function distributeBatchRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
+    function distributeRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
         onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
-        require(_totalAmount > 0, "StakingContract::distributeBatchRewards - total amount must be greater than 0");
+        require(_totalAmount > 0, "StakingContract::distributeRewards - total amount must be greater than 0");
 
         uint256 stakeOwnersLength = _stakeOwners.length;
         uint256 amountsLength = _amounts.length;
         require(stakeOwnersLength > 0 && amountsLength > 0,
-            "StakingContract::distributeBatchRewards - lists can't be empty");
+            "StakingContract::distributeRewards - lists can't be empty");
         require(stakeOwnersLength == amountsLength,
-            "StakingContract::distributeBatchRewards - lists must be of the same size");
+            "StakingContract::distributeRewards - lists must be of the same size");
 
         uint i;
 
@@ -355,7 +355,7 @@ contract StakingContract is IStakingContract {
             expectedTotalAmount = expectedTotalAmount.add(_amounts[i]);
         }
 
-        require(_totalAmount == expectedTotalAmount, "StakingContract::distributeBatchRewards - incorrect total amount");
+        require(_totalAmount == expectedTotalAmount, "StakingContract::distributeRewards - incorrect total amount");
 
         for (i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
