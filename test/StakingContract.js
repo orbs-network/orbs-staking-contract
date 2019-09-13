@@ -96,14 +96,14 @@ contract('StakingContract', (accounts) => {
         await testSetMigrationManager(staking, migrationManager, newMigrationManager);
       });
 
-      it('should not allow to change to 0', async () => {
+      it('should not allow changing to 0', async () => {
         await expectRevert(staking.setMigrationManager(constants.ZERO_ADDRESS, { from: migrationManager }),
           'StakingContract::setMigrationManager - address must not be 0');
       });
 
-      it('should not allow to change to the same address', async () => {
+      it('should not allow changing to the same address', async () => {
         await expectRevert(staking.setMigrationManager(migrationManager, { from: migrationManager }),
-          'StakingContract::setMigrationManager - new address must be different');
+          'StakingContract::setMigrationManager - address must be different than the current address');
       });
     });
   });
@@ -142,14 +142,14 @@ contract('StakingContract', (accounts) => {
         await testSetEmergencyManager(staking, emergencyManager, newEmergencyManager);
       });
 
-      it('should not allow to change to 0', async () => {
+      it('should not allow changing to 0', async () => {
         await expectRevert(staking.setEmergencyManager(constants.ZERO_ADDRESS, { from: sender }),
           'StakingContract::setEmergencyManager - address must not be 0');
       });
 
-      it('should not allow to change to the same address', async () => {
+      it('should not allow changing to the same address', async () => {
         await expectRevert(staking.setEmergencyManager(emergencyManager, { from: sender }),
-          'StakingContract::setEmergencyManager - new address must be different');
+          'StakingContract::setEmergencyManager - address must be different than the current address');
       });
     });
   });
@@ -195,13 +195,13 @@ contract('StakingContract', (accounts) => {
           await staking.setStakeChangeNotifier(newNotifier, { from: sender });
         });
 
-        it('should allow to reset to 0', async () => {
+        it('should allow resetting to 0', async () => {
           await testSetStakeChangeNotifier(staking, newNotifier, constants.ZERO_ADDRESS);
         });
 
-        it('should not allow to change to the same address', async () => {
+        it('should not allow changing to the same address', async () => {
           await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
-            'StakingContract::setStakeChangeNotifier - new address must be different');
+            'StakingContract::setStakeChangeNotifier - address must be different than the current address');
         });
       });
     });
@@ -304,12 +304,12 @@ contract('StakingContract', (accounts) => {
       const sender = accounts[1];
       const destination = migrationDestinations[0];
 
-      it('should not allow to add a new contract', async () => {
+      it('should not allow adding a new contract', async () => {
         await expectRevert(staking.addMigrationDestination(destination, { from: sender }),
           'StakingContract: caller is not the migration manager');
       });
 
-      it('should not allow to remove any contract', async () => {
+      it('should not allow removing of any contract', async () => {
         await expectRevert(staking.addMigrationDestination(destination, { from: sender }),
           'StakingContract: caller is not the migration manager');
       });
@@ -326,12 +326,12 @@ contract('StakingContract', (accounts) => {
         expect(await staking.getApprovedStakingContracts()).to.have.members(migrationDestinations);
       });
 
-      it('should not allow to add a 0 address', async () => {
+      it('should not allow adding a 0 address', async () => {
         await expectRevert(staking.addMigrationDestination(constants.ZERO_ADDRESS, { from: sender }),
           'StakingContract::addMigrationDestination - address must not be 0');
       });
 
-      it('should not allow to add a duplicate contract', async () => {
+      it('should not allow adding a duplicate contract', async () => {
         const destination = migrationDestinations[0];
 
         await staking.addMigrationDestination(destination, { from: sender });
@@ -339,7 +339,7 @@ contract('StakingContract', (accounts) => {
           "StakingContract::addMigrationDestination - can't add a duplicate staking contract");
       });
 
-      it(`should not allow to add more than ${MAX_APPROVED_STAKING_CONTRACTS} contracts`, async () => {
+      it(`should not allow adding more than ${MAX_APPROVED_STAKING_CONTRACTS} contracts`, async () => {
         for (const destination of migrationDestinations) {
           await staking.addMigrationDestination(destination, { from: sender });
         }
@@ -350,7 +350,7 @@ contract('StakingContract', (accounts) => {
           "StakingContract::addMigrationDestination - can't add more staking contracts");
       });
 
-      it('should not allow to add again a previously removed contract', async () => {
+      it('should not allow adding again a previously removed contract', async () => {
         const destination = migrationDestinations[0];
 
         await testAddMigrationDestination(staking, destination);
@@ -370,7 +370,7 @@ contract('StakingContract', (accounts) => {
         expect(await staking.getApprovedStakingContracts()).to.be.empty();
       });
 
-      it('should not allow to add a 0 address', async () => {
+      it('should not allow adding a 0 address', async () => {
         await expectRevert(staking.removeMigrationDestination(constants.ZERO_ADDRESS, { from: sender }),
           'StakingContract::removeMigrationDestination - address must not be 0');
       });
@@ -451,7 +451,7 @@ contract('StakingContract', (accounts) => {
     });
 
     context('without a stake', async () => {
-      it('should allow to stake', async () => {
+      it('should allow staking', async () => {
         const specs = [
           { stakeOwner: accounts[0], stake: new BN(1000) },
           { stakeOwner: accounts[1], stake: new BN(1) },
@@ -478,28 +478,28 @@ contract('StakingContract', (accounts) => {
           await token.approve(staking.getAddress(), stake.add(new BN(1000)), { from: stakeOwner });
         });
 
-        it('should allow to stake on behalf of a different staker', async () => {
+        it('should allow staking on behalf of a different staker', async () => {
           await testStaking(staking, notifier, stakeOwner2, stake, stakeOwner);
         });
 
-        it('should not allow to stake more tokens than the staker has', async () => {
+        it('should not allow staking more tokens than the staker has', async () => {
           await token.approve(staking.getAddress(), stake.add(new BN(1000)), { from: stakeOwner });
 
           await expectRevert.unspecified(staking.acceptMigration(stakeOwner2, stake.add(new BN(1)),
             { from: stakeOwner }));
         });
 
-        it('should not allow to stake 0 tokens', async () => {
+        it('should not allow staking 0 tokens', async () => {
           await expectRevert(staking.acceptMigration(stakeOwner2, new BN(0), { from: stakeOwner }),
             'StakingContract::stake - amount must be greater than 0');
         });
 
-        it('should not allow to stake more tokens than the staker has on behalf of a different staker', async () => {
+        it('should not allow staking more tokens than the staker has on behalf of a different staker', async () => {
           await expectRevert.unspecified(staking.acceptMigration(stakeOwner2, stake.add(new BN(1)),
             { from: stakeOwner }));
         });
 
-        it('should not allow to stake on behalf of a 0 address', async () => {
+        it('should not allow staking on behalf of a 0 address', async () => {
           await expectRevert(staking.acceptMigration(constants.ZERO_ADDRESS, stake, { from: stakeOwner }),
             "StakingContract::stake - stake owner can't be 0");
         });
@@ -564,7 +564,7 @@ contract('StakingContract', (accounts) => {
           await token.approve(staking.getAddress(), totalStake, { from: caller });
         });
 
-        it('should allow to stake on behalf of different stakers in batch', async () => {
+        it('should allow staking on behalf of different stakers in batch', async () => {
           const tx = await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
           expect(await notifier.getCalledWith()).to.have.members(stakers);
 
@@ -700,7 +700,7 @@ contract('StakingContract', (accounts) => {
         await staking.stake(stake, { from: stakeOwner });
       });
 
-      it('should allow to stake more tokens', async () => {
+      it('should allow staking more tokens', async () => {
         const newStake = new BN(100);
         await token.assign(stakeOwner, newStake);
         await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
@@ -714,7 +714,7 @@ contract('StakingContract', (accounts) => {
           await staking.unstake(unstaked, { from: stakeOwner });
         });
 
-        it('should allow to stake', async () => {
+        it('should allow staking', async () => {
           const newStake = new BN(100);
           await token.assign(stakeOwner, newStake);
           await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
@@ -729,7 +729,7 @@ contract('StakingContract', (accounts) => {
             expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
           });
 
-          it('should allow to stake', async () => {
+          it('should allow staking', async () => {
             const newStake = new BN(200);
             await token.assign(stakeOwner, newStake);
             await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
@@ -737,12 +737,12 @@ contract('StakingContract', (accounts) => {
             await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
           });
 
-          context('after full withdrawl', async () => {
+          context('after full withdrawal', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
             });
 
-            it('should allow to stake', async () => {
+            it('should allow staking', async () => {
               const newStake = new BN(500);
               await token.assign(stakeOwner, newStake);
               await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
@@ -755,7 +755,7 @@ contract('StakingContract', (accounts) => {
     });
 
     const testNotAllowStake = (msg) => {
-      it('should not allow to stake tokens', async () => {
+      it('should not allow staking tokens', async () => {
         const stakeOwner = accounts[4];
         const stake = new BN(500);
         await token.assign(stakeOwner, stake);
@@ -764,7 +764,7 @@ contract('StakingContract', (accounts) => {
         await expectRevert(staking.stake(stake, { from: stakeOwner }), msg);
       });
 
-      it('should not allow to stake tokens on behalf of a different staker', async () => {
+      it('should not allow staking tokens on behalf of a different staker', async () => {
         const stakeOwner = accounts[4];
         const stakeOwner2 = accounts[5];
         const stake = new BN(500);
@@ -774,7 +774,7 @@ contract('StakingContract', (accounts) => {
         await expectRevert(staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner }), msg);
       });
 
-      it('should not allow to stake on behalf of different stakers in batch', async () => {
+      it('should not allow staking on behalf of different stakers in batch', async () => {
         const stakers = accounts.slice(0, 3);
         const stakes = [new BN(100), new BN(1000), new BN(1000)];
         const totalStake = stakes.reduce((sum, s) => sum.add(s), new BN(0));
@@ -800,7 +800,7 @@ contract('StakingContract', (accounts) => {
         await staking.releaseAllStakes({ from: emergencyManager });
       });
 
-      testNotAllowStake('StakingContract: releasing all stakes');
+      testNotAllowStake('StakingContract: not accepting new stakes');
     });
   });
 
@@ -849,7 +849,7 @@ contract('StakingContract', (accounts) => {
     context('without a stake', async () => {
       const stakeOwner = accounts[1];
 
-      it('should not allow to unstake', async () => {
+      it('should not allow unstaking', async () => {
         await expectRevert(staking.unstake(new BN(1), { from: stakeOwner }),
           "StakingContract::unstake - can't unstake more than the current stake");
       });
@@ -866,7 +866,7 @@ contract('StakingContract', (accounts) => {
         await notifier.reset();
       });
 
-      it('should allow to partially unstake tokens', async () => {
+      it('should allow partially unstaking of tokens', async () => {
         await testUnstaking(staking, notifier, stakeOwner, new BN(100));
 
         // Skip some time ahead in order to make sure that the following operation properly resets cooldown end time.
@@ -875,16 +875,16 @@ contract('StakingContract', (accounts) => {
         await testUnstaking(staking, notifier, stakeOwner, new BN(500));
       });
 
-      it('should allow to unstake all tokens', async () => {
+      it('should allow unstaking of all tokens', async () => {
         await testUnstaking(staking, notifier, stakeOwner, stake);
       });
 
-      it('should not allow to unstake 0 tokens', async () => {
+      it('should not allow unstaking of 0 tokens', async () => {
         await expectRevert(staking.unstake(new BN(0), { from: stakeOwner }),
           'StakingContract::unstake - amount must be greater than 0');
       });
 
-      it('should not allow to unstake more tokens than the staker has staked', async () => {
+      it('should not allow unstaking more tokens than the staker has staked', async () => {
         await expectRevert(staking.unstake(stake.add(new BN(1)), { from: stakeOwner }),
           "StakingContract::unstake - can't unstake more than the current stake");
       });
@@ -898,17 +898,17 @@ contract('StakingContract', (accounts) => {
           expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
         });
 
-        it('should not allow to unstake more tokens', async () => {
+        it('should not allow unstaking of more tokens', async () => {
           await expectRevert(staking.unstake(new BN(1), { from: stakeOwner }),
             'StakingContract::unstake - unable to unstake when there are tokens pending withdrawal');
         });
 
-        context('after a full withdrawl', async () => {
+        context('after a full withdrawal', async () => {
           beforeEach(async () => {
             await staking.withdraw({ from: stakeOwner });
           });
 
-          it('should allow to unstake more tokens', async () => {
+          it('should allow unstaking of more tokens', async () => {
             const newStake = new BN(123);
             await token.assign(stakeOwner, newStake);
             await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
@@ -925,7 +925,7 @@ contract('StakingContract', (accounts) => {
           await staking.stopAcceptingNewStakes({ from: emergencyManager });
         });
 
-        it('should allow to unstake tokens', async () => {
+        it('should allow unstaking', async () => {
           await testUnstaking(staking, notifier, stakeOwner, stake);
         });
       });
@@ -935,15 +935,15 @@ contract('StakingContract', (accounts) => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
 
-        it('should allow to unstake tokens', async () => {
+        it('should allow unstaking', async () => {
           await testUnstaking(staking, notifier, stakeOwner, stake);
         });
       });
     });
   });
 
-  describe('withdrawl', async () => {
-    const testWithdrawl = async (staking, notifier, stakeOwner) => {
+  describe('withdrawal', async () => {
+    const testWithdrawal = async (staking, notifier, stakeOwner) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -997,7 +997,7 @@ contract('StakingContract', (accounts) => {
     context('without a stake', async () => {
       const stakeOwner = accounts[3];
 
-      it('should not allow to withdraw', async () => {
+      it('should not allow withdrawal', async () => {
         await expectRevert(staking.withdraw({ from: stakeOwner }),
           'StakingContract::withdraw - no unstaked tokens');
       });
@@ -1007,7 +1007,7 @@ contract('StakingContract', (accounts) => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
 
-        it('should not allow to withdraw', async () => {
+        it('should not allow withdrawal', async () => {
           await expectRevert(staking.withdraw({ from: stakeOwner }),
             'StakingContract::withdraw - no staked or unstaked tokens');
         });
@@ -1025,7 +1025,7 @@ contract('StakingContract', (accounts) => {
         await notifier.reset();
       });
 
-      it('should not allow to withdraw', async () => {
+      it('should not allow withdrawal', async () => {
         await expectRevert(staking.withdraw({ from: stakeOwner }),
           'StakingContract::withdraw - no unstaked tokens');
       });
@@ -1036,7 +1036,7 @@ contract('StakingContract', (accounts) => {
           await notifier.reset();
         });
 
-        it('should not allow to withdraw', async () => {
+        it('should not allow withdrawal', async () => {
           await expectRevert(staking.withdraw({ from: stakeOwner }),
             'StakingContract::withdraw - tokens are still in cooldown');
         });
@@ -1048,23 +1048,23 @@ contract('StakingContract', (accounts) => {
             expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
           });
 
-          it('should allow to withdraw all tokens', async () => {
-            await testWithdrawl(staking, notifier, stakeOwner);
+          it('should allow withdrawal of all tokens', async () => {
+            await testWithdrawal(staking, notifier, stakeOwner);
           });
 
-          it('should not allow to withdraw if unable to transfer', async () => {
+          it('should not allow withdrawal if unable to transfer', async () => {
             await token.setFailTransfer(true);
 
             await expectRevert(staking.withdraw({ from: stakeOwner }),
               "StakingContract::withdraw - couldn't transfer stake");
           });
 
-          context('after full withdrawl', async () => {
+          context('after full withdrawal', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
             });
 
-            it('should not allow to withdraw', async () => {
+            it('should not allow withdrawal', async () => {
               await expectRevert(staking.withdraw({ from: stakeOwner }),
                 'StakingContract::withdraw - no unstaked tokens');
             });
@@ -1075,8 +1075,8 @@ contract('StakingContract', (accounts) => {
               await staking.stopAcceptingNewStakes({ from: emergencyManager });
             });
 
-            it('should allow to withdraw tokens', async () => {
-              await testWithdrawl(staking, notifier, stakeOwner);
+            it('should allow withdrawal', async () => {
+              await testWithdrawal(staking, notifier, stakeOwner);
             });
           });
         });
@@ -1087,8 +1087,8 @@ contract('StakingContract', (accounts) => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
 
-        it('should allow to withdraw all tokens', async () => {
-          await testWithdrawl(staking, notifier, stakeOwner);
+        it('should allow withdrawal of all tokens', async () => {
+          await testWithdrawal(staking, notifier, stakeOwner);
         });
       });
     });
@@ -1137,7 +1137,7 @@ contract('StakingContract', (accounts) => {
     context('without a stake', async () => {
       const stakeOwner = accounts[3];
 
-      it('should not allow to restake', async () => {
+      it('should not allow restaking', async () => {
         await expectRevert(staking.restake({ from: stakeOwner }),
           'StakingContract::restake - no unstaked tokens');
       });
@@ -1154,7 +1154,7 @@ contract('StakingContract', (accounts) => {
         await notifier.reset();
       });
 
-      it('should not allow to restake', async () => {
+      it('should not allow restaking', async () => {
         await expectRevert(staking.restake({ from: stakeOwner }),
           'StakingContract::restake - no unstaked tokens');
       });
@@ -1165,7 +1165,7 @@ contract('StakingContract', (accounts) => {
           await notifier.reset();
         });
 
-        it('should allow to restake', async () => {
+        it('should allow restaking', async () => {
           await testRestaking(staking, notifier, stakeOwner);
         });
 
@@ -1176,7 +1176,7 @@ contract('StakingContract', (accounts) => {
             expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
           });
 
-          it('should allow to restake', async () => {
+          it('should allow restaking', async () => {
             await testRestaking(staking, notifier, stakeOwner);
           });
 
@@ -1185,7 +1185,7 @@ contract('StakingContract', (accounts) => {
               await staking.withdraw({ from: stakeOwner });
             });
 
-            it('should not allow to restake', async () => {
+            it('should not allow restaking', async () => {
               await expectRevert(staking.restake({ from: stakeOwner }),
                 'StakingContract::restake - no unstaked tokens');
             });
@@ -1197,7 +1197,7 @@ contract('StakingContract', (accounts) => {
             await staking.stopAcceptingNewStakes({ from: emergencyManager });
           });
 
-          it('should not allow to restake', async () => {
+          it('should not allow restaking', async () => {
             await expectRevert(staking.restake({ from: stakeOwner }),
               'StakingContract: not accepting new stakes');
           });
@@ -1208,9 +1208,9 @@ contract('StakingContract', (accounts) => {
             await staking.releaseAllStakes({ from: emergencyManager });
           });
 
-          it('should not allow to restake', async () => {
+          it('should not allow restaking', async () => {
             await expectRevert(staking.restake({ from: stakeOwner }),
-              'StakingContract: releasing all stakes');
+              'StakingContract: not accepting new stakes');
           });
         });
       });
@@ -1288,7 +1288,7 @@ contract('StakingContract', (accounts) => {
     context('without a stake', async () => {
       const stakeOwner = accounts[3];
 
-      it('should not allow to migrate', async () => {
+      it('should not allow migration', async () => {
         const migrationDestination = migrationDestinations[0];
         await expectRevert(staking.migrateStakedTokens(migrationDestination, { from: stakeOwner }),
           'StakingContract::migrateStakedTokens - no staked tokens');
@@ -1306,11 +1306,11 @@ contract('StakingContract', (accounts) => {
         await notifier.reset();
       });
 
-      it('should allow to migrate', async () => {
+      it('should allow migration', async () => {
         await testMigration(staking, notifier, stakeOwner, migrationDestinations[0], migrationNotifiers[0]);
       });
 
-      it('should only allow to migrate to an approved migration destination', async () => {
+      it('should only allow migration to an approved migration destination', async () => {
         const notApprovedMigrationDestination = accounts[8];
         await expectRevert(staking.migrateStakedTokens(notApprovedMigrationDestination, { from: stakeOwner }),
           "StakingContract::migrateStakedTokens - migration destination wasn't approved");
@@ -1330,7 +1330,7 @@ contract('StakingContract', (accounts) => {
         }
       });
 
-      it('should not allow to migrate to a staking contract with a different token', async () => {
+      it('should not allow migration to a staking contract with a different token', async () => {
         const token2 = await TestERC20.new();
         const migrationDestination = await StakingContract.new(cooldown, migrationManager, emergencyManager, token2);
         await staking.addMigrationDestination(migrationDestination, { from: migrationManager });
@@ -1339,7 +1339,7 @@ contract('StakingContract', (accounts) => {
           'StakingContract::migrateStakedTokens - staked tokens must be the same');
       });
 
-      it('should not allow to migrate if unable to approve', async () => {
+      it('should not allow migration if unable to approve', async () => {
         await token.setFailApprove(true);
 
         await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], { from: stakeOwner }),
@@ -1368,7 +1368,7 @@ contract('StakingContract', (accounts) => {
             await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
           });
 
-          context('after a full withdrawl', async () => {
+          context('after a full withdrawal', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
               await notifier.reset();
@@ -1386,7 +1386,7 @@ contract('StakingContract', (accounts) => {
           await staking.stopAcceptingNewStakes({ from: emergencyManager });
         });
 
-        it('should allow to migrate', async () => {
+        it('should allow migration', async () => {
           await testMigration(staking, notifier, stakeOwner, migrationDestinations[1], migrationNotifiers[1]);
         });
       });
@@ -1396,7 +1396,7 @@ contract('StakingContract', (accounts) => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
 
-        it('should not allow to migrate', async () => {
+        it('should not allow migration', async () => {
           await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], { from: stakeOwner }),
             'StakingContract: releasing all stakes');
         });
@@ -1414,17 +1414,17 @@ contract('StakingContract', (accounts) => {
     context('as a regular account', async () => {
       const sender = accounts[0];
 
-      it('should not allow to request to stop accepting new stake', async () => {
+      it('should not allow requesting to stop accepting new stake', async () => {
         await expectRevert(staking.stopAcceptingNewStakes({ from: sender }),
           'StakingContract: caller is not the emergency manager');
       });
 
-      it('should not allow to request to release all stakes', async () => {
+      it('should not allow requesting to release all stakes', async () => {
         await expectRevert(staking.releaseAllStakes({ from: sender }),
           'StakingContract: caller is not the emergency manager');
       });
 
-      it('should not allow to batch withdraw all stakes', async () => {
+      it('should not allow batch withdrawal of all stakes', async () => {
         await expectRevert(staking.withdrawReleasedStakes(accounts),
           'StakingContract: not releasing all stakes');
       });
@@ -1449,12 +1449,12 @@ contract('StakingContract', (accounts) => {
           await expectRevert(staking.stake(stake, { from: stakeOwner }), 'StakingContract: not accepting new stakes');
         });
 
-        it('should not allow to request to stop accepting new stakes again', async () => {
+        it('should not allow requesting to stop accepting new stakes again', async () => {
           await expectRevert(staking.stopAcceptingNewStakes({ from: sender }),
             'StakingContract: not accepting new stakes');
         });
 
-        it('should allow to request to release all stakes', async () => {
+        it('should allow requesting to release all stakes', async () => {
           await staking.releaseAllStakes({ from: sender });
         });
       });
@@ -1478,7 +1478,7 @@ contract('StakingContract', (accounts) => {
             expect(await staking.releasingAllStakes()).to.be.true();
           });
 
-          it('should allow to withdraw all staked and unstaked tokens', async () => {
+          it('should allow withdrawal of all staked and unstaked tokens', async () => {
             const getState = async () => {
               return {
                 stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -1503,12 +1503,12 @@ contract('StakingContract', (accounts) => {
             expect(currentState.totalStakedTokens).to.be.bignumber.eq(new BN(0));
           });
 
-          it('should not allow to request to stop accepting new stake', async () => {
+          it('should not allow requesting to stop accepting new stake', async () => {
             await expectRevert(staking.stopAcceptingNewStakes({ from: sender }),
               'StakingContract: not accepting new stakes');
           });
 
-          it('should not allow to request again to release all stakes', async () => {
+          it('should not allow requesting again to release all stakes', async () => {
             await expectRevert(staking.releaseAllStakes({ from: sender }),
               'StakingContract: releasing all stakes');
           });
@@ -1547,7 +1547,7 @@ contract('StakingContract', (accounts) => {
             }
           });
 
-          it('should not allow to batch withdraw all stakes', async () => {
+          it('should not allow batch withdrawal of all stakes', async () => {
             await expectRevert(staking.withdrawReleasedStakes(accounts),
               'StakingContract: not releasing all stakes');
           });
@@ -1559,7 +1559,7 @@ contract('StakingContract', (accounts) => {
               expect(await staking.releasingAllStakes()).to.be.true();
             });
 
-            it('should allow to batch withdraw all stakes', async () => {
+            it('should allow batch withdrawal of all stakes', async () => {
               const getStakeOwnerState = async (stakeOwner) => {
                 return {
                   stakeOwnerBalance: await token.balanceOf(stakeOwner),
