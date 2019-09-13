@@ -53,18 +53,6 @@ class StakingContract extends BaseContract {
     return this.contract.notifier.call();
   }
 
-  async setMigrationManager(manager, options = {}) {
-    return this.contract.setMigrationManager(StakingContract.getAddress(manager), options);
-  }
-
-  async setEmergencyManager(manager, options = {}) {
-    return this.contract.setEmergencyManager(StakingContract.getAddress(manager), options);
-  }
-
-  async setStakeChangeNotifier(notifier, options = {}) {
-    return this.contract.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
-  }
-
   async getMigrationManager() {
     return this.contract.migrationManager.call();
   }
@@ -75,6 +63,37 @@ class StakingContract extends BaseContract {
 
   async getToken() {
     return this.contract.getToken.call();
+  }
+
+  async getApprovedStakingContracts() {
+    const contracts = [];
+
+    const length = (await this.contract.getApprovedStakingContractsLength.call()).toNumber();
+    for (let i = 0; i < length; ++i) {
+      contracts.push(await this.contract.approvedStakingContracts.call(i));
+    }
+
+    return contracts;
+  }
+
+  async acceptingNewStakes() {
+    return this.contract.acceptingNewStakes.call();
+  }
+
+  async releasingAllStakes() {
+    return this.contract.releasingAllStakes.call();
+  }
+
+  async setMigrationManager(manager, options = {}) {
+    return this.contract.setMigrationManager(StakingContract.getAddress(manager), options);
+  }
+
+  async setEmergencyManager(manager, options = {}) {
+    return this.contract.setEmergencyManager(StakingContract.getAddress(manager), options);
+  }
+
+  async setStakeChangeNotifier(notifier, options = {}) {
+    return this.contract.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
   }
 
   async notifyStakeChange(stakeOwner) {
@@ -91,17 +110,6 @@ class StakingContract extends BaseContract {
 
   async isApprovedStakingContract(stakingContract) {
     return this.contract.isApprovedStakingContract.call(StakingContract.getAddress(stakingContract));
-  }
-
-  async getApprovedStakingContracts() {
-    const contracts = [];
-
-    const length = (await this.contract.getApprovedStakingContractsLength.call()).toNumber();
-    for (let i = 0; i < length; ++i) {
-      contracts.push(await this.contract.approvedStakingContracts.call(i));
-    }
-
-    return contracts;
   }
 
   async stake(amount, options = {}) {
@@ -133,6 +141,14 @@ class StakingContract extends BaseContract {
       amounts, options);
   }
 
+  async stopAcceptingNewStakes(options = {}) {
+    return this.contract.stopAcceptingNewStakes(options);
+  }
+
+  async releaseAllStakes(options = {}) {
+    return this.contract.releaseAllStakes(options);
+  }
+
   static getEvents() {
     return {
       staked: 'Staked',
@@ -147,6 +163,8 @@ class StakingContract extends BaseContract {
       emergencyManagerUpdated: 'EmergencyManagerUpdated',
       stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
       stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
+      stoppedAcceptingNewStake: 'StoppedAcceptingNewStake',
+      releasedAllStakes: 'ReleasedAllStakes',
     };
   }
 }

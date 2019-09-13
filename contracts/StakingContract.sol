@@ -46,6 +46,19 @@ contract StakingContract is IStakingContract {
     // The address of the ORBS token.
     IERC20 public token;
 
+    // Represents whether this staking contract accepts new staking requests. When it's turned off, it'd be still
+    // possible to unstake or withdraw tokens.
+    //
+    // Note: This can be turned off only once by the emergency manager of the contract.
+    bool public acceptingNewStakes = true;
+
+    // Represents whether this staking contract allows to release all unstaked tokens unconditionally. When it's turned
+    // on, stake owners could release their staked tokens, without explicitly requesting to unstake them, and their
+    // already unstaked tokens, regardless of the cooldown period. This will also turn off accepting of new stakes.
+    //
+    // Note: This can be turned off only once by the emergency manager of the contract.
+    bool public releasingAllStakes = false;
+
     event Staked(address indexed stakeOwner, uint256 amount);
     event Unstaked(address indexed stakeOwner, uint256 amount);
     event Withdrew(address indexed stakeOwner, uint256 amount);
@@ -58,6 +71,8 @@ contract StakingContract is IStakingContract {
     event EmergencyManagerUpdated(address indexed emergencyManager);
     event StakeChangeNotifierUpdated(address indexed notifier);
     event StakeChangeNotificationFailed(address indexed notifier);
+    event StoppedAcceptingNewStake();
+    event ReleasedAllStakes();
 
     modifier onlyMigrationManager() {
         require(msg.sender == migrationManager, "StakingContract: caller is not the migration manager");
@@ -67,6 +82,18 @@ contract StakingContract is IStakingContract {
 
     modifier onlyEmergencyManager() {
         require(msg.sender == emergencyManager, "StakingContract: caller is not the emergency manager");
+
+        _;
+    }
+
+    modifier onlyWhenAcceptingNewStakes() {
+        require(acceptingNewStakes, "StakingContract: not accepting new stakes");
+
+        _;
+    }
+
+    modifier onlyWhenStakesNotReleased() {
+        require(!releasingAllStakes, "StakingContract: releasing all stakes");
 
         _;
     }
@@ -167,7 +194,7 @@ contract StakingContract is IStakingContract {
     /// @param _amount uint256 The amount of tokens to stake.
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    function stake(uint256 _amount) external {
+    function stake(uint256 _amount) external onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
 
         stake(stakeOwner, _amount);
@@ -216,25 +243,36 @@ contract StakingContract is IStakingContract {
     function withdraw() external {
         address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
-        uint256 cooldownAmount = stakeData.cooldownAmount;
-        uint256 cooldownEndTime = stakeData.cooldownEndTime;
+        uint256 amount = stakeData.cooldownAmount;
 
-        require(cooldownAmount > 0, "StakingContract::withdraw - no unstaked tokens");
-        require(cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
+        if (!releasingAllStakes) {
+            require(amount > 0, "StakingContract::withdraw - no unstaked tokens");
+            require(stakeData.cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
+        } else {
+            // If the contract was requested to release all stakes - allow to withdraw all staked and unstaked tokens.
+            uint256 stakedAmount = stakeData.amount;
+            amount = amount.add(stakedAmount);
+
+            require(amount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
+
+            stakeData.amount = 0;
+
+            totalStakedTokens = totalStakedTokens.sub(stakedAmount);
+        }
 
         stakeData.cooldownAmount = 0;
         stakeData.cooldownEndTime = 0;
 
-        require(token.transfer(stakeOwner, cooldownAmount), "StakingContract::withdraw - couldn't transfer stake");
+        require(token.transfer(stakeOwner, amount), "StakingContract::withdraw - couldn't transfer stake");
 
-        emit Withdrew(stakeOwner, cooldownAmount);
+        emit Withdrew(stakeOwner, amount);
 
         // Note: we aren't concerned with reentrancy thanks to the CEI pattern.
         notifyStakeChange(stakeOwner);
     }
 
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender
-    function restake() external {
+    function restake() external onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
 
@@ -258,7 +296,8 @@ contract StakingContract is IStakingContract {
     /// @param _amount uint256 The amount of tokens to stake.
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    function acceptMigration(address _stakeOwner, uint256 _amount) external {
+    function acceptMigration(address _stakeOwner, uint256 _amount) external onlyWhenStakesNotReleased
+        onlyWhenAcceptingNewStakes {
         stake(_stakeOwner, _amount);
 
         emit AcceptedMigration(_stakeOwner, _amount);
@@ -268,7 +307,7 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
-    function migrateStakedTokens(IStakingContract _newStakingContract) external {
+    function migrateStakedTokens(IStakingContract _newStakingContract) external onlyWhenStakesNotReleased {
         require(isApprovedStakingContract(_newStakingContract),
             "StakingContract::migrateStakedTokens - migration destination wasn't approved");
         require(_newStakingContract.getToken() == token,
@@ -298,7 +337,8 @@ contract StakingContract is IStakingContract {
     /// Notes: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     /// Since this is a convenience method, we aren't concerned of reaching block gas limit by using large lists. We
     /// assume that callers will be able to properly batch/paginate their requests.
-    function distributeBatchRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external {
+    function distributeBatchRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
+        onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
         require(_totalAmount > 0, "StakingContract::distributeBatchRewards - total amount must be greater than 0");
 
         uint256 stakeOwnersLength = _stakeOwners.length;
@@ -357,6 +397,23 @@ contract StakingContract is IStakingContract {
     /// @dev Returns the address of the underlying staked token.
     function getToken() external view returns (IERC20) {
         return token;
+    }
+
+    /// @dev Requests the contract to stop accepting new staking requests.
+    function stopAcceptingNewStakes() external onlyEmergencyManager onlyWhenAcceptingNewStakes {
+        acceptingNewStakes = false;
+
+        emit StoppedAcceptingNewStake();
+    }
+
+    /// @dev Requests the contract to release all stakes.
+    function releaseAllStakes() external onlyEmergencyManager onlyWhenStakesNotReleased {
+        releasingAllStakes = true;
+
+        // We can't accept new stakes when the contract is releasing all stakes.
+        acceptingNewStakes = false;
+
+        emit ReleasedAllStakes();
     }
 
     /// @dev Returns whether a specific staking contract was approved.
