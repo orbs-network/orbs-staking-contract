@@ -65,7 +65,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('setting the migration manager', async () => {
+  describe('setting of the migration manager', async () => {
     const testSetMigrationManager = async (staking, from, to) => {
       expect(await staking.getMigrationManager()).to.eql(from);
 
@@ -81,7 +81,7 @@ contract('StakingContract', (accounts) => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('regular account', async () => {
+    context('as a regular account', async () => {
       it('should not allow to set', async () => {
         const sender = accounts[1];
         const newMigrationManager = accounts[2];
@@ -90,7 +90,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('migration manager', async () => {
+    context('as a migration manager', async () => {
       it('should set to a new address', async () => {
         const newMigrationManager = accounts[3];
         await testSetMigrationManager(staking, migrationManager, newMigrationManager);
@@ -108,7 +108,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('setting the emergency manager', async () => {
+  describe('setting of the emergency manager', async () => {
     const testSetEmergencyManager = async (staking, from, to) => {
       expect(await staking.getEmergencyManager()).to.eql(from);
 
@@ -124,7 +124,7 @@ contract('StakingContract', (accounts) => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('regular account', async () => {
+    context('as a regular account', async () => {
       const sender = accounts[1];
 
       it('should not allow to set', async () => {
@@ -134,7 +134,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('emergency manager', async () => {
+    context('as an emergency manager', async () => {
       const sender = emergencyManager;
 
       it('should set to a new address', async () => {
@@ -154,7 +154,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('stake change notifier management', async () => {
+  describe('settong of the stake change notifier', async () => {
     const testSetStakeChangeNotifier = async (staking, from, to) => {
       expect(await staking.getStakeChangeNotifier()).to.eql(from);
 
@@ -170,7 +170,7 @@ contract('StakingContract', (accounts) => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('regular account', async () => {
+    context('as a regular account', async () => {
       const sender = accounts[1];
 
       it('should not allow to set', async () => {
@@ -180,7 +180,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('migration manager', async () => {
+    context('as a migration manager', async () => {
       const sender = migrationManager;
 
       it('should set to a new address', async () => {
@@ -188,7 +188,7 @@ contract('StakingContract', (accounts) => {
         await testSetStakeChangeNotifier(staking, constants.ZERO_ADDRESS, newNotifier);
       });
 
-      context('already set', async () => {
+      context('when already set', async () => {
         const newNotifier = accounts[2];
 
         beforeEach(async () => {
@@ -207,7 +207,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('stake change notification', async () => {
+  describe('stake change notifications', async () => {
     const testSetStakeChangeNotifier = async (staking, notifier, from, to) => {
       expect(await notifier.getCalledWith()).to.have.members(from);
 
@@ -222,7 +222,7 @@ contract('StakingContract', (accounts) => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('no notifier', async () => {
+    context('without a notifier', async () => {
       it('should succeed', async () => {
         const stakeOwner = accounts[6];
         const tx = await staking.notifyStakeChange(stakeOwner);
@@ -230,7 +230,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('EOA notifier', async () => {
+    context('with an EOA notifier', async () => {
       const notifier = accounts[1];
       beforeEach(async () => {
         await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
@@ -243,7 +243,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('contract notifier', async () => {
+    context('with a contract notifier', async () => {
       let notifier;
       beforeEach(async () => {
         notifier = await StakeChangeNotifier.new();
@@ -255,7 +255,7 @@ contract('StakingContract', (accounts) => {
         await testSetStakeChangeNotifier(staking, notifier, [], stakeOwner);
       });
 
-      context('reverting', async () => {
+      context('with a reverting notifier', async () => {
         beforeEach(async () => {
           await notifier.setRevert(true);
         });
@@ -273,7 +273,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('migration destinations management', async () => {
+  describe('adding/removal of migration destinations', async () => {
     const testAddMigrationDestination = async (staking, destination) => {
       expect(await staking.isApprovedStakingContract(destination)).to.be.false();
 
@@ -300,7 +300,7 @@ contract('StakingContract', (accounts) => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('regular account', async () => {
+    context('as a regular account', async () => {
       const sender = accounts[1];
       const destination = migrationDestinations[0];
 
@@ -315,7 +315,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('migration manager', async () => {
+    context('as a migration manager', async () => {
       const sender = migrationManager;
 
       it('should add new staking contracts', async () => {
@@ -450,7 +450,7 @@ contract('StakingContract', (accounts) => {
       await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
-    context('no stake', async () => {
+    context('without a stake', async () => {
       it('should allow to stake', async () => {
         const specs = [
           { stakeOwner: accounts[0], stake: new BN(1000) },
@@ -468,7 +468,7 @@ contract('StakingContract', (accounts) => {
         }
       });
 
-      describe('accept migration', async () => {
+      describe('accepting migration', async () => {
         const stake = new BN(12345);
         const stakeOwner = accounts[2];
         const stakeOwner2 = accounts[5];
@@ -504,7 +504,7 @@ contract('StakingContract', (accounts) => {
             "StakingContract::stake - stake owner can't be 0");
         });
 
-        context('reentrant stake change notifier', async () => {
+        context('with a reentrant notifier', async () => {
           let reentrantNotifier;
           beforeEach(async () => {
             reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking, token);
@@ -528,7 +528,7 @@ contract('StakingContract', (accounts) => {
             expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(effectiveStake);
           });
 
-          context('insufficient balance for twice the stake', async () => {
+          context('with an insufficient token balance', async () => {
             it('should stake only once', async () => {
               await token.assign(reentrantNotifier.getAddress(), stake.sub(new BN(1)));
               await reentrantNotifier.approve(staking, stake, { from: stakeOwner });
@@ -548,7 +548,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      describe('batch rewards', async () => {
+      describe('distributing rewards', async () => {
         const stakers = accounts.slice(0, 20);
         const stakes = [
           new BN(3134), new BN(5052), new BN(1445), new BN(6102), new BN(4667),
@@ -619,7 +619,7 @@ contract('StakingContract', (accounts) => {
             "StakingContract::distributeRewards - lists can't be empty");
         });
 
-        context('reentrant stake change notifier', async () => {
+        context('with a reentrant notifier', async () => {
           let reentrantNotifier;
           beforeEach(async () => {
             reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking, token);
@@ -653,7 +653,7 @@ contract('StakingContract', (accounts) => {
             expect(await staking.getStakeBalanceOf(luckyStaker)).to.be.bignumber.eq(originalStake.add(additionalStake));
           });
 
-          context('insufficient balance for twice the stake', async () => {
+          context('with an insufficient token balance', async () => {
             it('should batch stake only once', async () => {
               const luckyStakerIndex = 5;
               const luckyStaker = stakers[luckyStakerIndex];
@@ -690,7 +690,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('with stake', async () => {
+    context('with a stake', async () => {
       const stake = new BN(1000);
       const stakeOwner = accounts[4];
 
@@ -722,7 +722,7 @@ contract('StakingContract', (accounts) => {
           await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
         });
 
-        context('pending withdrawal', async () => {
+        context('with pending withdrawal', async () => {
           beforeEach(async () => {
             const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
             await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
@@ -737,7 +737,7 @@ contract('StakingContract', (accounts) => {
             await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
           });
 
-          context('fully withdrawn', async () => {
+          context('after full withdrawl', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
             });
@@ -787,7 +787,7 @@ contract('StakingContract', (accounts) => {
       });
     };
 
-    context('stopped accepting new stake', async () => {
+    context('when stopped accepting new stake', async () => {
       beforeEach(async () => {
         await staking.stopAcceptingNewStakes({ from: emergencyManager });
       });
@@ -795,7 +795,7 @@ contract('StakingContract', (accounts) => {
       testNotAllowStake('StakingContract: not accepting new stakes');
     });
 
-    context('released all stake', async () => {
+    context('when released all stake', async () => {
       beforeEach(async () => {
         await staking.releaseAllStakes({ from: emergencyManager });
       });
@@ -846,7 +846,7 @@ contract('StakingContract', (accounts) => {
       await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
-    context('no stake', async () => {
+    context('without a stake', async () => {
       const stakeOwner = accounts[1];
 
       it('should not allow to unstake', async () => {
@@ -855,7 +855,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('with stake', async () => {
+    context('with a stake', async () => {
       const stake = new BN(1000);
       const stakeOwner = accounts[4];
 
@@ -889,7 +889,7 @@ contract('StakingContract', (accounts) => {
           "StakingContract::unstake - can't unstake more than the current stake");
       });
 
-      context('pending withdrawal', async () => {
+      context('with a pending withdrawal', async () => {
         beforeEach(async () => {
           await staking.unstake(stake.sub(new BN(100)), { from: stakeOwner });
 
@@ -903,7 +903,7 @@ contract('StakingContract', (accounts) => {
             'StakingContract::unstake - unable to unstake when there are tokens pending withdrawal');
         });
 
-        context('fully withdrawn', async () => {
+        context('after a full withdrawl', async () => {
           beforeEach(async () => {
             await staking.withdraw({ from: stakeOwner });
           });
@@ -920,7 +920,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      context('stopped accepting new stake', async () => {
+      context('when stopped accepting new stake', async () => {
         beforeEach(async () => {
           await staking.stopAcceptingNewStakes({ from: emergencyManager });
         });
@@ -930,7 +930,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      context('released all stake', async () => {
+      context('when released all stake', async () => {
         beforeEach(async () => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
@@ -994,7 +994,7 @@ contract('StakingContract', (accounts) => {
       await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
-    context('no stake', async () => {
+    context('without a stake', async () => {
       const stakeOwner = accounts[3];
 
       it('should not allow to withdraw', async () => {
@@ -1002,7 +1002,7 @@ contract('StakingContract', (accounts) => {
           'StakingContract::withdraw - no unstaked tokens');
       });
 
-      context('released all stake', async () => {
+      context('when released all stake', async () => {
         beforeEach(async () => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
@@ -1014,7 +1014,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('with stake', async () => {
+    context('with a stake', async () => {
       const stake = new BN(1000);
       const stakeOwner = accounts[4];
 
@@ -1041,7 +1041,7 @@ contract('StakingContract', (accounts) => {
             'StakingContract::withdraw - tokens are still in cooldown');
         });
 
-        context('pending withdrawal', async () => {
+        context('with a pending withdrawal', async () => {
           beforeEach(async () => {
             const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
             await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
@@ -1052,7 +1052,7 @@ contract('StakingContract', (accounts) => {
             await testWithdrawl(staking, notifier, stakeOwner);
           });
 
-          context('fully withdrawn', async () => {
+          context('after full withdrawl', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
             });
@@ -1063,7 +1063,7 @@ contract('StakingContract', (accounts) => {
             });
           });
 
-          context('stopped accepting new stake', async () => {
+          context('when stopped accepting new stake', async () => {
             beforeEach(async () => {
               await staking.stopAcceptingNewStakes({ from: emergencyManager });
             });
@@ -1075,7 +1075,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      context('released all stake', async () => {
+      context('when released all stake', async () => {
         beforeEach(async () => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
@@ -1127,7 +1127,7 @@ contract('StakingContract', (accounts) => {
       await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
-    context('no stake', async () => {
+    context('without a stake', async () => {
       const stakeOwner = accounts[3];
 
       it('should not allow to restake', async () => {
@@ -1136,7 +1136,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('with stake', async () => {
+    context('with a stake', async () => {
       const stake = new BN(1000);
       const stakeOwner = accounts[4];
 
@@ -1210,7 +1210,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('migration', async () => {
+  describe('migration to new staking contracts', async () => {
     const testMigration = async (staking, notifier, stakeOwner, migrationDestination, migrationNotifier) => {
       const getState = async () => {
         return {
@@ -1278,7 +1278,7 @@ contract('StakingContract', (accounts) => {
       }
     });
 
-    context('no stake', async () => {
+    context('without a stake', async () => {
       const stakeOwner = accounts[3];
 
       it('should not allow to migrate', async () => {
@@ -1288,7 +1288,7 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('with stake', async () => {
+    context('with a stake', async () => {
       const stake = new BN(1000);
       const stakeOwner = accounts[4];
 
@@ -1332,7 +1332,7 @@ contract('StakingContract', (accounts) => {
           'StakingContract::migrateStakedTokens - staked tokens must be the same');
       });
 
-      context('with unstaked stake', async () => {
+      context('with an unstaked stake', async () => {
         const unstaked = new BN(100);
         beforeEach(async () => {
           await staking.unstake(unstaked, { from: stakeOwner });
@@ -1343,7 +1343,7 @@ contract('StakingContract', (accounts) => {
           await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
         });
 
-        context('pending withdrawal', async () => {
+        context('with a pending withdrawal', async () => {
           beforeEach(async () => {
             const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
             await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
@@ -1354,7 +1354,7 @@ contract('StakingContract', (accounts) => {
             await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
           });
 
-          context('fully withdrawn', async () => {
+          context('after a full withdrawl', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
               await notifier.reset();
@@ -1367,7 +1367,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      context('stopped accepting new stake', async () => {
+      context('when stopped accepting new stake', async () => {
         beforeEach(async () => {
           await staking.stopAcceptingNewStakes({ from: emergencyManager });
         });
@@ -1377,7 +1377,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      context('released all stake', async () => {
+      context('when released all stake', async () => {
         beforeEach(async () => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
@@ -1390,14 +1390,14 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('emergency', async () => {
+  describe('emergency operations', async () => {
     let staking;
     beforeEach(async () => {
       const cooldown = duration.minutes(5);
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('regular account', async () => {
+    context('as a regular account', async () => {
       const sender = accounts[0];
 
       it('should not allow to request to stop accepting new stake', async () => {
@@ -1416,10 +1416,10 @@ contract('StakingContract', (accounts) => {
       });
     });
 
-    context('emergency manager', async () => {
+    context('as an emergency manager', async () => {
       const sender = emergencyManager;
 
-      context('stopped accepting new stake', async () => {
+      context('when stopped accepting new stake', async () => {
         beforeEach(async () => {
           const tx = await staking.stopAcceptingNewStakes({ from: sender });
           expectEvent.inLogs(tx.logs, EVENTS.stoppedAcceptingNewStake);
@@ -1445,7 +1445,7 @@ contract('StakingContract', (accounts) => {
         });
       });
 
-      context('with unstaked tokens', async () => {
+      context('with an unstaked tokens', async () => {
         const stake = new BN(1000);
         const unstaked = new BN(100);
         const stakeOwner = accounts[4];
@@ -1457,7 +1457,7 @@ contract('StakingContract', (accounts) => {
           await staking.unstake(unstaked, { from: stakeOwner });
         });
 
-        context('released all stake', async () => {
+        context('when released all stake', async () => {
           beforeEach(async () => {
             const tx = await staking.releaseAllStakes({ from: sender });
             expectEvent.inLogs(tx.logs, EVENTS.releasedAllStakes);
@@ -1508,7 +1508,7 @@ contract('StakingContract', (accounts) => {
           await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
         });
 
-        context('with unstaked tokens', async () => {
+        context('with unstaked stakes', async () => {
           const caller = accounts[10];
           const stakers = accounts.slice(0, 10);
           const stakeAmounts = [
@@ -1538,7 +1538,7 @@ contract('StakingContract', (accounts) => {
               'StakingContract: not releasing all stakes');
           });
 
-          context('released all stake', async () => {
+          context('when released all stake', async () => {
             beforeEach(async () => {
               const tx = await staking.releaseAllStakes({ from: sender });
               expectEvent.inLogs(tx.logs, EVENTS.releasedAllStakes);
