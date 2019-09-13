@@ -302,13 +302,14 @@ contract StakingContract is IStakingContract {
         address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
         uint256 amount = stakeData.amount;
-        require(amount > 0, "StakingContract::migrateStakedTokens - no staked tokens");
 
-        require(token.approve(_newStakingContract, amount),
-            "StakingContract::migrateStakedTokens - couldn't approve transfer");
+        require(amount > 0, "StakingContract::migrateStakedTokens - no staked tokens");
 
         stakeData.amount = 0;
         totalStakedTokens = totalStakedTokens.sub(amount);
+
+        require(token.approve(_newStakingContract, amount),
+            "StakingContract::migrateStakedTokens - couldn't approve transfer");
 
         emit MigratedStake(stakeOwner, amount);
 
