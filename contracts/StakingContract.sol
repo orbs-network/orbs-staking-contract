@@ -404,7 +404,7 @@ contract StakingContract is IStakingContract {
 
     /// @dev Requests withdraw of released tokens of a list of addresses.
     /// @param _stakeOwners address[] The addresses of the stake owners.
-    function withdrawReleasedStakes(address[] _stakeOwners) onlyWhenStakesReleased external {
+    function withdrawReleasedStakes(address[] _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
