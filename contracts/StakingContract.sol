@@ -87,7 +87,7 @@ contract StakingContract is IStakingContract {
     }
 
     modifier onlyWhenAcceptingNewStakes() {
-        require(acceptingNewStakes, "StakingContract: not accepting new stakes");
+        require(acceptingNewStakes && !releasingAllStakes, "StakingContract: not accepting new stakes");
 
         _;
     }
@@ -200,7 +200,7 @@ contract StakingContract is IStakingContract {
     /// @param _amount uint256 The amount of tokens to stake.
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    function stake(uint256 _amount) external onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
+    function stake(uint256 _amount) external onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
 
         stake(stakeOwner, _amount);
@@ -257,8 +257,8 @@ contract StakingContract is IStakingContract {
         notifyStakeChange(stakeOwner);
     }
 
-    /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender
-    function restake() external onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
+    /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
+    function restake() external onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
 
@@ -282,8 +282,7 @@ contract StakingContract is IStakingContract {
     /// @param _amount uint256 The amount of tokens to stake.
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    function acceptMigration(address _stakeOwner, uint256 _amount) external onlyWhenStakesNotReleased
-        onlyWhenAcceptingNewStakes {
+    function acceptMigration(address _stakeOwner, uint256 _amount) external onlyWhenAcceptingNewStakes {
         stake(_stakeOwner, _amount);
 
         emit AcceptedMigration(_stakeOwner, _amount);
@@ -325,7 +324,7 @@ contract StakingContract is IStakingContract {
     /// Since this is a convenience method, we aren't concerned of reaching block gas limit by using large lists. We
     /// assume that callers will be able to properly batch/paginate their requests.
     function distributeRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
-        onlyWhenStakesNotReleased onlyWhenAcceptingNewStakes {
+        onlyWhenAcceptingNewStakes {
         require(_totalAmount > 0, "StakingContract::distributeRewards - total amount must be greater than 0");
 
         uint256 stakeOwnersLength = _stakeOwners.length;
@@ -396,9 +395,6 @@ contract StakingContract is IStakingContract {
     /// @dev Requests the contract to release all stakes.
     function releaseAllStakes() external onlyEmergencyManager onlyWhenStakesNotReleased {
         releasingAllStakes = true;
-
-        // We can't accept new stakes when the contract is releasing all stakes.
-        acceptingNewStakes = false;
 
         emit ReleasedAllStakes();
     }
