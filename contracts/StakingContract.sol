@@ -227,7 +227,7 @@ contract StakingContract is IStakingContract {
         uint256 cooldownAmount = stakeData.cooldownAmount;
         uint256 cooldownEndTime = stakeData.cooldownEndTime;
 
-        require(stakedAmount >= _amount, "StakingContract::unstake - can't unstake more than the current stake");
+        require(_amount <= stakedAmount, "StakingContract::unstake - can't unstake more than the current stake");
 
         // If any tokens in cooldown are ready for withdrawal - revert. Stake owner should withdraw their unstaked
         // tokens first.
