@@ -221,7 +221,6 @@ contract StakingContract is IStakingContract {
         require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
 
         address stakeOwner = msg.sender;
-
         Stake storage stakeData = stakes[stakeOwner];
         uint256 stakedAmount = stakeData.amount;
         uint256 cooldownAmount = stakeData.cooldownAmount;
@@ -254,7 +253,6 @@ contract StakingContract is IStakingContract {
     /// period has passed (unless the contract was requested to release all stakes).
     function withdraw() external {
         address stakeOwner = msg.sender;
-
         uint256 amount = withdraw(stakeOwner);
 
         emit Withdrew(stakeOwner, amount);
@@ -266,7 +264,6 @@ contract StakingContract is IStakingContract {
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
     function restake() external onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
-
         Stake storage stakeData = stakes[stakeOwner];
         uint256 cooldownAmount = stakeData.cooldownAmount;
 
@@ -304,13 +301,13 @@ contract StakingContract is IStakingContract {
             "StakingContract::migrateStakedTokens - migration destination wasn't approved");
 
         address stakeOwner = msg.sender;
-
         Stake storage stakeData = stakes[stakeOwner];
         uint256 amount = stakeData.amount;
 
         require(amount > 0, "StakingContract::migrateStakedTokens - no staked tokens");
 
         stakeData.amount = 0;
+
         totalStakedTokens = totalStakedTokens.sub(amount);
 
         require(_newStakingContract.getToken() == token,
