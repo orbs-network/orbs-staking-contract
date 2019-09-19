@@ -359,7 +359,7 @@ contract StakingContract is IStakingContract {
 
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
-        // duplicated the loop.
+        // duplicating the loop.
         for (i = 0; i < stakeOwnersLength; ++i) {
             notifyStakeChange(_stakeOwners[i]);
         }
@@ -419,7 +419,7 @@ contract StakingContract is IStakingContract {
 
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
-        // duplicated the loop.
+        // duplicating the loop.
         for (i = 0; i < stakeOwnersLength; ++i) {
             notifyStakeChange(_stakeOwners[i]);
         }
