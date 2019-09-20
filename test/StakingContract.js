@@ -709,9 +709,9 @@ contract('StakingContract', (accounts) => {
       });
 
       context('with unstaked tokens', async () => {
+        const unstakeAmount = new BN(100);
         beforeEach(async () => {
-          const unstaked = new BN(100);
-          await staking.unstake(unstaked, { from: stakeOwner });
+          await staking.unstake(unstakeAmount, { from: stakeOwner });
         });
 
         it('should allow staking', async () => {
@@ -890,8 +890,9 @@ contract('StakingContract', (accounts) => {
       });
 
       context('with a pending withdrawal', async () => {
+        const unstakeAmount = stake.sub(new BN(100));
         beforeEach(async () => {
-          await staking.unstake(stake.sub(new BN(100)), { from: stakeOwner });
+          await staking.unstake(unstakeAmount, { from: stakeOwner });
 
           const unstakedStatus = await staking.getUnstakeStatus(stakeOwner);
           await time.increaseTo(unstakedStatus.cooldownEndTime.add(duration.seconds(1)));
@@ -1030,9 +1031,10 @@ contract('StakingContract', (accounts) => {
           'StakingContract::withdraw - no unstaked tokens');
       });
 
-      context('with unstaked stake', async () => {
+      context('with an unstaked stake', async () => {
+        const unstakeAmount = new BN(100);
         beforeEach(async () => {
-          await staking.unstake(new BN(100), { from: stakeOwner });
+          await staking.unstake(unstakeAmount, { from: stakeOwner });
           await notifier.reset();
         });
 
@@ -1048,7 +1050,7 @@ contract('StakingContract', (accounts) => {
             expect(await time.latest()).to.be.bignumber.gt(unstakedStatus.cooldownEndTime);
           });
 
-          it('should allow withdrawal of all tokens', async () => {
+          it('should allow withdrawal of all unstaked tokens', async () => {
             await testWithdrawal(staking, notifier, stakeOwner);
           });
 
@@ -1087,7 +1089,7 @@ contract('StakingContract', (accounts) => {
           await staking.releaseAllStakes({ from: emergencyManager });
         });
 
-        it('should allow withdrawal of all tokens', async () => {
+        it('should allow withdrawal of all unstaked tokens', async () => {
           await testWithdrawal(staking, notifier, stakeOwner);
         });
       });
@@ -1159,9 +1161,10 @@ contract('StakingContract', (accounts) => {
           'StakingContract::restake - no unstaked tokens');
       });
 
-      context('with unstaked stake', async () => {
+      context('with an unstaked stake', async () => {
+        const unstakeAmount = new BN(100);
         beforeEach(async () => {
-          await staking.unstake(new BN(100), { from: stakeOwner });
+          await staking.unstake(unstakeAmount, { from: stakeOwner });
           await notifier.reset();
         });
 
@@ -1347,9 +1350,9 @@ contract('StakingContract', (accounts) => {
       });
 
       context('with an unstaked stake', async () => {
-        const unstaked = new BN(100);
+        const unstakeAmount = new BN(100);
         beforeEach(async () => {
-          await staking.unstake(unstaked, { from: stakeOwner });
+          await staking.unstake(unstakeAmount, { from: stakeOwner });
           await notifier.reset();
         });
 
@@ -1461,14 +1464,14 @@ contract('StakingContract', (accounts) => {
 
       context('with an unstaked tokens', async () => {
         const stake = new BN(1000);
-        const unstaked = new BN(100);
+        const unstakeAmount = new BN(100);
         const stakeOwner = accounts[4];
 
         beforeEach(async () => {
           await token.assign(stakeOwner, stake);
           await token.approve(staking.getAddress(), stake, { from: stakeOwner });
           await staking.stake(stake, { from: stakeOwner });
-          await staking.unstake(unstaked, { from: stakeOwner });
+          await staking.unstake(unstakeAmount, { from: stakeOwner });
         });
 
         context('when released all stake', async () => {
@@ -1522,7 +1525,7 @@ contract('StakingContract', (accounts) => {
           await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
         });
 
-        context('with unstaked stakes', async () => {
+        context('with an unstaked stakes', async () => {
           const caller = accounts[10];
           const stakers = accounts.slice(0, 10);
           const stakeAmounts = [
