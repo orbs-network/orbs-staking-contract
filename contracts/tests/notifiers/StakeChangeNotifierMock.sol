@@ -1,6 +1,6 @@
 pragma solidity 0.4.26;
 
-import "../IStakeChangeNotifier.sol";
+import "../../IStakeChangeNotifier.sol";
 
 /// @title A test mockup for IStakeChangeNotifier.
 contract StakeChangeNotifierMock is IStakeChangeNotifier {
