@@ -5,7 +5,8 @@ import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "../../IStakingContract.sol";
 import "./StakeChangeNotifierMock.sol";
 
-/// @title A reentrancy test mockup for IStakeChangeNotifier.
+/// @title A reentrancy test mockup for IStakeChangeNotifier. The purpose of this contract is to simulate the case when
+/// the migration manager has set a notifier which tries to reenter back to the staking contract.
 contract ReentrantStakeChangeNotifierMock is StakeChangeNotifierMock {
     IStakingContract public staking;
     IERC20 public token;
