@@ -236,7 +236,7 @@ contract('StakingContract', (accounts) => {
         await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
       });
 
-      it('should emit a failing event', async () => {
+      it('should not emit a failing event', async () => {
         const stakeOwner = accounts[5];
         const tx = await staking.notifyStakeChange(stakeOwner);
         expect(tx.logs).to.be.empty();
