@@ -340,22 +340,29 @@ contract StakingContract is IStakingContract {
         require(stakeOwnersLength == amountsLength,
             "StakingContract::distributeRewards - lists must be of the same size");
 
-        uint i;
+        // Transfer all the tokens to the smart contract and update the stake owners list accordingly.
+        require(token.transferFrom(msg.sender, address(this), _totalAmount),
+            "StakingContract::distributeRewards - insufficient allowance");
+
         uint256 expectedTotalAmount = 0;
-        for (i = 0; i < amountsLength; ++i) {
-            expectedTotalAmount = expectedTotalAmount.add(_amounts[i]);
+        for (uint i = 0; i < stakeOwnersLength; ++i) {
+            address stakeOwner = _stakeOwners[i];
+            uint256 amount = _amounts[i];
+
+            require(stakeOwner != address(0), "StakingContract::distributeRewards - stake owner can't be 0");
+            require(amount > 0, "StakingContract::distributeRewards - amount must be greater than 0");
+
+            Stake storage stakeData = stakes[stakeOwner];
+            stakeData.amount = stakeData.amount.add(amount);
+
+            expectedTotalAmount = expectedTotalAmount.add(amount);
+
+            emit Staked(stakeOwner, amount);
         }
 
         require(_totalAmount == expectedTotalAmount, "StakingContract::distributeRewards - incorrect total amount");
 
-        for (i = 0; i < stakeOwnersLength; ++i) {
-            address stakeOwner = _stakeOwners[i];
-            uint256 amount = _amounts[i];
-
-            stake(stakeOwner, amount);
-
-            emit Staked(stakeOwner, amount);
-        }
+        totalStakedTokens = totalStakedTokens.add(_totalAmount);
 
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
