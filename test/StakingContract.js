@@ -1,8 +1,8 @@
 import chai from 'chai';
 import { BN, expectRevert, expectEvent, constants, time } from 'openzeppelin-test-helpers';
 import StakingContract from './helpers/stakingContract';
-import StakeChangeNotifier from './helpers/stakeChangeNotifier';
-import ReentrantStakeChangeNotifier from './helpers/reentrantStakeChangeNotifier';
+import StakeChangeNotifier from './helpers/notifiers/stakeChangeNotifier';
+import ReentrantStakeChangeNotifier from './helpers/notifiers/reentrantStakeChangeNotifier';
 
 const { expect } = chai;
 const { duration } = time;

@@ -2,7 +2,7 @@ import StakeChangeNotifier from './stakeChangeNotifier';
 
 /* eslint-disable operator-linebreak */
 const ReentrantStakeChangeNotifierMock =
-  artifacts.require('../../contracts/tests/notifiers/ReentrantStakeChangeNotifierMock.sol');
+  artifacts.require('../../../contracts/tests/notifiers/ReentrantStakeChangeNotifierMock.sol');
 /* eslint-enable operator-linebreak */
 
 class ReentrantStakeChangeNotifier extends StakeChangeNotifier {
