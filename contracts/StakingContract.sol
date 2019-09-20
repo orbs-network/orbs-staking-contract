@@ -215,8 +215,9 @@ contract StakingContract is IStakingContract {
         notifyStakeChange(stakeOwner);
     }
 
-    /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown
-    /// period, after which msg.sender would be able to withdraw all of his tokens.
+    /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown period, after which
+    ///     msg.sender would be able to withdraw all of his tokens.
+    /// @param _amount uint256 The amount of tokens to unstake.
     function unstake(uint256 _amount) external {
         require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
 
