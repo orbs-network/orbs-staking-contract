@@ -19,6 +19,7 @@ contract ExpensiveStakeChangeNotifierMock is StakeChangeNotifierMock {
         uint256 remainingGas = gasleft() + TRANSACTION_GAS_COST - gasCost;
 
         while (remainingGas <= gasleft()) {
+            // Deploy a dummy contract to waste some gas.
             new Dummy();
         }
     }
