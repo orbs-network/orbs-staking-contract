@@ -1221,7 +1221,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('migration to new staking contracts', async () => {
-    const testMigration = async (staking, notifier, stakeOwner, migrationDestination, migrationNotifier) => {
+    const testMigration = async (staking, notifier, stakeOwner, amount, migrationDestination, migrationNotifier) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -1236,28 +1236,27 @@ contract('StakingContract', (accounts) => {
         };
       };
 
-      const stake = await staking.getStakeBalanceOf(stakeOwner);
       const prevState = await getState();
 
-      const tx = await staking.migrateStakedTokens(migrationDestination, { from: stakeOwner });
-      expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake });
+      const tx = await staking.migrateStakedTokens(migrationDestination, amount, { from: stakeOwner });
+      expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount });
       expect(await notifier.getCalledWith()).to.be.empty();
       expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
 
       const currentState = await getState();
 
-      expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(stake));
+      expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(amount));
       expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
-      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.sub(stake));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.sub(amount));
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
         .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
         .eq(prevState.stakeOwnerUnstakedStatus.cooldownEndTime);
-      expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.sub(stake));
-      expect(currentState.migrationStakingBalance).to.be.bignumber.eq(prevState.migrationStakingBalance.add(stake));
-      expect(currentState.migrationStakeOwnerStake).to.be.bignumber.eq(prevState.migrationStakeOwnerStake.add(stake));
+      expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.sub(amount));
+      expect(currentState.migrationStakingBalance).to.be.bignumber.eq(prevState.migrationStakingBalance.add(amount));
+      expect(currentState.migrationStakeOwnerStake).to.be.bignumber.eq(prevState.migrationStakeOwnerStake.add(amount));
       expect(currentState.migrationTotalStakedTokens).to.be.bignumber
-        .eq(prevState.migrationTotalStakedTokens.add(stake));
+        .eq(prevState.migrationTotalStakedTokens.add(amount));
       expect(currentState.migrationUnstakedStatus.cooldownAmount).to.be.bignumber
         .eq(prevState.migrationUnstakedStatus.cooldownAmount);
       expect(currentState.migrationUnstakedStatus.cooldownEndTime).to.be.bignumber
@@ -1293,7 +1292,7 @@ contract('StakingContract', (accounts) => {
 
       it('should not allow migration', async () => {
         const migrationDestination = migrationDestinations[0];
-        await expectRevert(staking.migrateStakedTokens(migrationDestination, { from: stakeOwner }),
+        await expectRevert(staking.migrateStakedTokens(migrationDestination, new BN(1), { from: stakeOwner }),
           'StakingContract::migrateStakedTokens - no staked tokens');
       });
     });
@@ -1310,18 +1309,26 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should allow migration', async () => {
-        await testMigration(staking, notifier, stakeOwner, migrationDestinations[0], migrationNotifiers[0]);
+        await testMigration(staking, notifier, stakeOwner, stake, migrationDestinations[0], migrationNotifiers[0]);
+      });
+
+      it('should allow partial migration', async () => {
+        const remainder = new BN(100);
+        await testMigration(staking, notifier, stakeOwner, stake.sub(remainder), migrationDestinations[0],
+          migrationNotifiers[0]);
+        await testMigration(staking, notifier, stakeOwner, remainder, migrationDestinations[1],
+          migrationNotifiers[1]);
       });
 
       it('should only allow migration to an approved migration destination', async () => {
         const notApprovedMigrationDestination = accounts[8];
-        await expectRevert(staking.migrateStakedTokens(notApprovedMigrationDestination, { from: stakeOwner }),
-          "StakingContract::migrateStakedTokens - migration destination wasn't approved");
+        await expectRevert(staking.migrateStakedTokens(notApprovedMigrationDestination, new BN(1),
+          { from: stakeOwner }), "StakingContract::migrateStakedTokens - migration destination wasn't approved");
 
         for (let i = 0; i < migrationDestinations.length; ++i) {
           const migrationDestination = migrationDestinations[i];
           const migrationNotifier = migrationNotifiers[i];
-          const tx = await staking.migrateStakedTokens(migrationDestination, { from: stakeOwner });
+          const tx = await staking.migrateStakedTokens(migrationDestination, stake, { from: stakeOwner });
           expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake });
           expect(await notifier.getCalledWith()).to.be.empty();
           expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
@@ -1338,15 +1345,25 @@ contract('StakingContract', (accounts) => {
         const migrationDestination = await StakingContract.new(cooldown, migrationManager, emergencyManager, token2);
         await staking.addMigrationDestination(migrationDestination, { from: migrationManager });
 
-        await expectRevert(staking.migrateStakedTokens(migrationDestination, { from: stakeOwner }),
+        await expectRevert(staking.migrateStakedTokens(migrationDestination, new BN(1), { from: stakeOwner }),
           'StakingContract::migrateStakedTokens - staked tokens must be the same');
       });
 
       it('should not allow migration if unable to approve', async () => {
         await token.setFailApprove(true);
 
-        await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], { from: stakeOwner }),
+        await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], new BN(1), { from: stakeOwner }),
           "StakingContract::migrateStakedTokens - couldn't approve transfer");
+      });
+
+      it('should not allow migration of 0 tokens', async () => {
+        await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], new BN(0), { from: stakeOwner }),
+          'StakingContract::migrateStakedTokens - amount must be greater than 0');
+      });
+
+      it('should not allow migration of more than staked tokens', async () => {
+        await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], stake.add(new BN(1)),
+          { from: stakeOwner }), 'StakingContract::migrateStakedTokens - amount exceeds staked token balance');
       });
 
       context('with an unstaked stake', async () => {
@@ -1357,7 +1374,8 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should only migrate tokens not in cooldown', async () => {
-          await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
+          await testMigration(staking, notifier, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[2],
+            migrationNotifiers[2]);
         });
 
         context('with a pending withdrawal', async () => {
@@ -1368,7 +1386,8 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should only migrate tokens not in cooldown', async () => {
-            await testMigration(staking, notifier, stakeOwner, migrationDestinations[2], migrationNotifiers[2]);
+            await testMigration(staking, notifier, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[2],
+              migrationNotifiers[2]);
           });
 
           context('after a full withdrawal', async () => {
@@ -1378,7 +1397,8 @@ contract('StakingContract', (accounts) => {
             });
 
             it('should only migrate tokens not in cooldown', async () => {
-              await testMigration(staking, notifier, stakeOwner, migrationDestinations[1], migrationNotifiers[1]);
+              await testMigration(staking, notifier, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[1],
+                migrationNotifiers[1]);
             });
           });
         });
@@ -1390,7 +1410,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow migration', async () => {
-          await testMigration(staking, notifier, stakeOwner, migrationDestinations[1], migrationNotifiers[1]);
+          await testMigration(staking, notifier, stakeOwner, stake, migrationDestinations[1], migrationNotifiers[1]);
         });
       });
 
@@ -1400,7 +1420,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should not allow migration', async () => {
-          await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], { from: stakeOwner }),
+          await expectRevert(staking.migrateStakedTokens(migrationDestinations[0], stake, { from: stakeOwner }),
             'StakingContract: releasing all stakes');
         });
       });
