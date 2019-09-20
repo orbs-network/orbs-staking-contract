@@ -3,6 +3,7 @@ import { BN, expectRevert, expectEvent, constants, time } from 'openzeppelin-tes
 import StakingContract from './helpers/stakingContract';
 import StakeChangeNotifier from './helpers/notifiers/stakeChangeNotifier';
 import ReentrantStakeChangeNotifier from './helpers/notifiers/reentrantStakeChangeNotifier';
+import ExpensiveStakeChangeNotifier from './helpers/notifiers/expensiveStakeChangeNotifier';
 
 const { expect } = chai;
 const { duration } = time;
@@ -10,6 +11,7 @@ const { duration } = time;
 const EVENTS = StakingContract.getEvents();
 const VERSION = new BN(1);
 const MAX_APPROVED_STAKING_CONTRACTS = 10;
+const STAKE_CHANGE_NOTIFICATION_GAS_LIMIT = StakingContract.getStakeChangeNotificationGasLimit();
 const TIME_ERROR = duration.seconds(10);
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
@@ -269,6 +271,25 @@ contract('StakingContract', (accounts) => {
 
           expect(await notifier.getCalledWith()).to.be.empty();
         });
+      });
+    });
+
+    context('with an expensive notifier', async () => {
+      let notifier;
+      beforeEach(async () => {
+        notifier = await ExpensiveStakeChangeNotifier.new(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT);
+        await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+      });
+
+      it('should handle gas exhaustion and emit a failing event', async () => {
+        expect(await notifier.getCalledWith()).to.be.empty();
+
+        const stakeOwner = accounts[3];
+        const tx = await staking.notifyStakeChange(stakeOwner);
+        expect(tx.receipt.gasUsed).to.be.above(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT);
+        expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.getAddress() });
+
+        expect(await notifier.getCalledWith()).to.be.empty();
       });
     });
   });

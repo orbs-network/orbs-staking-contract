@@ -21,6 +21,9 @@ contract StakingContract is IStakingContract {
     // The maximum number of approved staking contracts as migration destinations.
     uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
 
+    // The gas limit for stake change notifications.
+    uint public constant STAKE_CHANGE_NOTIFICATION_GAS_LIMIT = 2000000;
+
     // The mapping between stake owners and their data.
     mapping (address => Stake) public stakes;
 
@@ -443,7 +446,8 @@ contract StakingContract is IStakingContract {
         // its returned value.
 
         // solhint-disable avoid-low-level-calls
-        if (!address(notifier).call(abi.encodeWithSelector(notifier.stakeChange.selector, _stakeOwner))) {
+        if (!address(notifier).call.gas(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT)(abi.encodeWithSelector(
+            notifier.stakeChange.selector, _stakeOwner))) {
             emit StakeChangeNotificationFailed(notifier);
         }
         // solhint-enable avoid-low-level-calls
