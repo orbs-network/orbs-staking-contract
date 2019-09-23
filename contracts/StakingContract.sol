@@ -176,6 +176,7 @@ contract StakingContract is IStakingContract {
         }
 
         approvedStakingContracts.push(_newStakingContract);
+
         emit MigrationDestinationAdded(_newStakingContract);
     }
 
