@@ -171,6 +171,10 @@ class StakingContract extends BaseContract {
       releasedAllStakes: 'ReleasedAllStakes',
     };
   }
+
+  static getStakeChangeNotificationGasLimit() {
+    return 2000000;
+  }
 }
 
 export default StakingContract;

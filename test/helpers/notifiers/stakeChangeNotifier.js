@@ -1,6 +1,6 @@
-import BaseContract from './baseContract';
+import BaseContract from '../baseContract';
 
-const StakeChangeNotifierMock = artifacts.require('../../contracts/tests/StakeChangeNotifierMock.sol');
+const StakeChangeNotifierMock = artifacts.require('../../../contracts/tests/notifiers/StakeChangeNotifierMock.sol');
 
 class StakeChangeNotifier extends BaseContract {
   static async new() {
