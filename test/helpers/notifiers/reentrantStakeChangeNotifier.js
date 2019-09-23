@@ -1,6 +1,9 @@
 import StakeChangeNotifier from './stakeChangeNotifier';
 
-const StakeChangeNotifierMock = artifacts.require('../../contracts/tests/ReentrantStakeChangeNotifierMock.sol');
+/* eslint-disable operator-linebreak */
+const ReentrantStakeChangeNotifierMock =
+  artifacts.require('../../../contracts/tests/notifiers/ReentrantStakeChangeNotifierMock.sol');
+/* eslint-enable operator-linebreak */
 
 class ReentrantStakeChangeNotifier extends StakeChangeNotifier {
   constructor(staking, token) {
@@ -18,7 +21,7 @@ class ReentrantStakeChangeNotifier extends StakeChangeNotifier {
   }
 
   async deploy() {
-    this.contract = await StakeChangeNotifierMock.new(ReentrantStakeChangeNotifier.getAddress(this.staking),
+    this.contract = await ReentrantStakeChangeNotifierMock.new(ReentrantStakeChangeNotifier.getAddress(this.staking),
       ReentrantStakeChangeNotifier.getAddress(this.token));
   }
 

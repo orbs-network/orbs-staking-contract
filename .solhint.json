@@ -6,6 +6,7 @@
         "avoid-sha3": "warn",
         "not-rely-on-time": "off",
         "no-empty-blocks": "off",
+        "mark-callable-contracts": "off",
         "indent": [
             "warn",
             4
