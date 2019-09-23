@@ -1248,9 +1248,10 @@ contract('StakingContract', (accounts) => {
       };
 
       const prevState = await getState();
+      const totalStakedAmount = prevState.stakeOwnerStake.sub(amount);
 
       const tx = await staking.migrateStakedTokens(migrationDestination, amount, { from: stakeOwner });
-      expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount });
+      expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount, totalStakedAmount });
       expect(await notifier.getCalledWith()).to.be.empty();
       expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
 
@@ -1258,7 +1259,7 @@ contract('StakingContract', (accounts) => {
 
       expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(amount));
       expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
-      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.sub(amount));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(totalStakedAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
         .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
@@ -1340,7 +1341,7 @@ contract('StakingContract', (accounts) => {
           const migrationDestination = migrationDestinations[i];
           const migrationNotifier = migrationNotifiers[i];
           const tx = await staking.migrateStakedTokens(migrationDestination, stake, { from: stakeOwner });
-          expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake });
+          expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake, totalStakedAmount: new BN(0) });
           expect(await notifier.getCalledWith()).to.be.empty();
           expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
 

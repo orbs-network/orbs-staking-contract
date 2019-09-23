@@ -65,7 +65,7 @@ contract StakingContract is IStakingContract {
     event Withdrew(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event Restaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event AcceptedMigration(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event MigratedStake(address indexed stakeOwner, uint256 amount);
+    event MigratedStake(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(IStakingContract indexed stakingContract);
     event MigrationDestinationRemoved(IStakingContract indexed stakingContract);
@@ -321,7 +321,7 @@ contract StakingContract is IStakingContract {
         require(token.approve(address(_newStakingContract), _amount),
             "StakingContract::migrateStakedTokens - couldn't approve transfer");
 
-        emit MigratedStake(stakeOwner, _amount);
+        emit MigratedStake(stakeOwner, _amount, stakeData.amount);
 
         _newStakingContract.acceptMigration(stakeOwner, _amount);
     }
