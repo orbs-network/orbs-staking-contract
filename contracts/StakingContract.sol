@@ -60,11 +60,11 @@ contract StakingContract is IStakingContract {
     // Note: This can be turned off only once by the emergency manager of the contract.
     bool public releasingAllStakes = false;
 
-    event Staked(address indexed stakeOwner, uint256 amount);
-    event Unstaked(address indexed stakeOwner, uint256 amount);
-    event Withdrew(address indexed stakeOwner, uint256 amount);
-    event Restaked(address indexed stakeOwner, uint256 amount);
-    event AcceptedMigration(address indexed stakeOwner, uint256 amount);
+    event Staked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event Unstaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event Withdrew(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event Restaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event AcceptedMigration(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event MigratedStake(address indexed stakeOwner, uint256 amount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(IStakingContract indexed stakingContract);
@@ -207,9 +207,9 @@ contract StakingContract is IStakingContract {
     function stake(uint256 _amount) external onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
 
-        stake(stakeOwner, _amount);
+        uint256 totalStakedAmount = stake(stakeOwner, _amount);
 
-        emit Staked(stakeOwner, _amount);
+        emit Staked(stakeOwner, _amount, totalStakedAmount);
 
         // Note: we aren't concerned with reentrancy due to the CEI pattern.
         notifyStakeChange(stakeOwner);
@@ -241,7 +241,7 @@ contract StakingContract is IStakingContract {
 
         totalStakedTokens = totalStakedTokens.sub(_amount);
 
-        emit Unstaked(stakeOwner, _amount);
+        emit Unstaked(stakeOwner, _amount, stakeData.amount);
 
         // Note: we aren't concerned with reentrancy due to the CEI pattern.
         notifyStakeChange(stakeOwner);
@@ -253,9 +253,10 @@ contract StakingContract is IStakingContract {
     /// period has passed (unless the contract was requested to release all stakes).
     function withdraw() external {
         address stakeOwner = msg.sender;
-        uint256 amount = withdraw(stakeOwner);
 
-        emit Withdrew(stakeOwner, amount);
+        (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
+
+        emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
 
         // Note: we aren't concerned with reentrancy due to the CEI pattern.
         notifyStakeChange(stakeOwner);
@@ -275,7 +276,7 @@ contract StakingContract is IStakingContract {
 
         totalStakedTokens = totalStakedTokens.add(cooldownAmount);
 
-        emit Restaked(stakeOwner, cooldownAmount);
+        emit Restaked(stakeOwner, cooldownAmount, stakeData.amount);
 
         // Note: we aren't concerned with reentrancy due to the CEI pattern.
         notifyStakeChange(stakeOwner);
@@ -287,9 +288,9 @@ contract StakingContract is IStakingContract {
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     function acceptMigration(address _stakeOwner, uint256 _amount) external onlyWhenAcceptingNewStakes {
-        stake(_stakeOwner, _amount);
+        uint256 totalStakedAmount = stake(_stakeOwner, _amount);
 
-        emit AcceptedMigration(_stakeOwner, _amount);
+        emit AcceptedMigration(_stakeOwner, _amount, totalStakedAmount);
 
         // Note: we aren't concerned with reentrancy due to the CEI pattern.
         notifyStakeChange(_stakeOwner);
@@ -352,9 +353,9 @@ contract StakingContract is IStakingContract {
             address stakeOwner = _stakeOwners[i];
             uint256 amount = _amounts[i];
 
-            stake(stakeOwner, amount);
+            uint256 totalStakedAmount = stake(stakeOwner, amount);
 
-            emit Staked(stakeOwner, amount);
+            emit Staked(stakeOwner, amount, totalStakedAmount);
         }
 
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
@@ -412,9 +413,9 @@ contract StakingContract is IStakingContract {
         for (i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
-            uint256 amount = withdraw(stakeOwner);
+            (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
 
-            emit Withdrew(stakeOwner, amount);
+            emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
         }
 
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
@@ -454,7 +455,7 @@ contract StakingContract is IStakingContract {
     /// @param _amount uint256 The amount of tokens to stake.
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    function stake(address _stakeOwner, uint256 _amount) private {
+    function stake(address _stakeOwner, uint256 _amount) private returns (uint256 totalStakedAmount) {
         require(_stakeOwner != address(0), "StakingContract::stake - stake owner can't be 0");
         require(_amount > 0, "StakingContract::stake - amount must be greater than 0");
 
@@ -462,6 +463,8 @@ contract StakingContract is IStakingContract {
         stakeData.amount = stakeData.amount.add(_amount);
 
         totalStakedTokens = totalStakedTokens.add(_amount);
+
+        totalStakedAmount = stakeData.amount;
 
         // Transfer the tokens to the smart contract and update the stake owners list accordingly.
         require(token.transferFrom(msg.sender, address(this), _amount),
@@ -472,31 +475,34 @@ contract StakingContract is IStakingContract {
     ///
     /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
     /// period has passed (unless the contract was requested to release all stakes).
-    function withdraw(address _stakeOwner) private returns (uint256 amount) {
+    function withdraw(address _stakeOwner) private returns (uint256 withdrawnAmount, uint256 stakedAmount) {
         require(_stakeOwner != address(0), "StakingContract::withdraw - stake owner can't be 0");
 
         Stake storage stakeData = stakes[_stakeOwner];
-        amount = stakeData.cooldownAmount;
+        stakedAmount = stakeData.amount;
+
+        withdrawnAmount = stakeData.cooldownAmount;
 
         if (!releasingAllStakes) {
-            require(amount > 0, "StakingContract::withdraw - no unstaked tokens");
+            require(withdrawnAmount > 0, "StakingContract::withdraw - no unstaked tokens");
             require(stakeData.cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
         } else {
             // If the contract was requested to release all stakes - allow to withdraw all staked and unstaked tokens.
-            uint256 stakedAmount = stakeData.amount;
-            amount = amount.add(stakedAmount);
+            withdrawnAmount = withdrawnAmount.add(stakedAmount);
 
-            require(amount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
+            require(withdrawnAmount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
 
             stakeData.amount = 0;
 
             totalStakedTokens = totalStakedTokens.sub(stakedAmount);
+
+            stakedAmount = 0;
         }
 
         stakeData.cooldownAmount = 0;
         stakeData.cooldownEndTime = 0;
 
-        require(token.transfer(_stakeOwner, amount), "StakingContract::withdraw - couldn't transfer stake");
+        require(token.transfer(_stakeOwner, withdrawnAmount), "StakingContract::withdraw - couldn't transfer stake");
     }
 
     /// @dev Returns an index of an existing approved staking contract.

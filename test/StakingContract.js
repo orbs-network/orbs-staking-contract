@@ -407,15 +407,16 @@ contract('StakingContract', (accounts) => {
       };
 
       const prevState = await getState();
+      const totalStakedAmount = prevState.stakeOwnerStake.add(stake);
 
       await notifier.reset();
 
       if (from === stakeOwner) {
         const tx = await staking.stake(stake, { from });
-        expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
+        expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake, totalStakedAmount });
       } else {
         const tx = await staking.acceptMigration(stakeOwner, stake, { from });
-        expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner, amount: stake });
+        expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner, amount: stake, totalStakedAmount });
       }
 
       expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
@@ -424,7 +425,7 @@ contract('StakingContract', (accounts) => {
 
       expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.add(stake));
       expect(currentState.fromBalance).to.be.bignumber.eq(prevState.fromBalance.sub(stake));
-      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.add(stake));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(totalStakedAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
         .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
@@ -519,7 +520,11 @@ contract('StakingContract', (accounts) => {
             const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
 
             expect(tx.logs).to.have.length(2); // Two events for the double stake.
-            expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
+            expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, {
+              stakeOwner: stakeOwner2,
+              amount: stake,
+              totalStakedAmount: stake,
+            });
             expect(await reentrantNotifier.getCalledWith()).to.have.members([stakeOwner2, stakeOwner2]);
 
             // The operation will result in a double stake attribute to stakeOwner2:
@@ -535,7 +540,11 @@ contract('StakingContract', (accounts) => {
               await reentrantNotifier.setStakeData(stakeOwner2, stake);
 
               const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
-              expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner: stakeOwner2, amount: stake });
+              expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, {
+                stakeOwner: stakeOwner2,
+                amount: stake,
+                totalStakedAmount: stake,
+              });
               expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed,
                 { notifier: reentrantNotifier.getAddress() });
               expect(await reentrantNotifier.getCalledWith()).to.be.empty();
@@ -572,7 +581,7 @@ contract('StakingContract', (accounts) => {
             const stakeOwner = stakers[i];
             const stake = stakes[i];
 
-            expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake });
+            expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake, totalStakedAmount: stake });
 
             expect(await token.balanceOf(stakeOwner)).to.be.bignumber.eq(new BN(0));
             expect(await staking.getStakeBalanceOf(stakeOwner)).to.be.bignumber.eq(stake);
@@ -817,11 +826,12 @@ contract('StakingContract', (accounts) => {
       };
 
       const prevState = await getState();
+      const totalStakedAmount = prevState.stakeOwnerStake.sub(unstakeAmount);
 
       await notifier.reset();
 
       const tx = await staking.unstake(unstakeAmount, { from: stakeOwner });
-      expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: unstakeAmount });
+      expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: unstakeAmount, totalStakedAmount });
       expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
 
       const currentState = await getState();
@@ -829,7 +839,7 @@ contract('StakingContract', (accounts) => {
       const now = await time.latest();
       expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance);
       expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
-      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.sub(unstakeAmount));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(totalStakedAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
         .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount.add(unstakeAmount));
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
@@ -959,27 +969,27 @@ contract('StakingContract', (accounts) => {
       await notifier.reset();
 
       let withdrawnAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
-      let newStakeOwnerStake = prevState.stakeOwnerStake;
+      let totalStakedAmount = prevState.stakeOwnerStake;
       let newtotalStakedTokens = prevState.totalStakedTokens;
       if (await staking.releasingAllStakes()) {
         withdrawnAmount = withdrawnAmount.add(prevState.stakeOwnerStake);
-        newStakeOwnerStake = newStakeOwnerStake.sub(prevState.stakeOwnerStake);
+        totalStakedAmount = totalStakedAmount.sub(prevState.stakeOwnerStake);
         newtotalStakedTokens = newtotalStakedTokens.sub(prevState.stakeOwnerStake);
       } else {
         withdrawnAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
-        newStakeOwnerStake = prevState.stakeOwnerStake;
+        totalStakedAmount = prevState.stakeOwnerStake;
         newtotalStakedTokens = prevState.totalStakedTokens;
       }
 
       const tx = await staking.withdraw({ from: stakeOwner });
-      expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: withdrawnAmount });
+      expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: withdrawnAmount, totalStakedAmount });
       expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
 
       const currentState = await getState();
 
       expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance.sub(withdrawnAmount));
       expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance.add(withdrawnAmount));
-      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(newStakeOwnerStake);
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(totalStakedAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
       expect(currentState.totalStakedTokens).to.be.bignumber.eq(newtotalStakedTokens);
@@ -1108,18 +1118,19 @@ contract('StakingContract', (accounts) => {
 
       const prevState = await getState();
       const unstakedAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
+      const totalStakedAmount = prevState.stakeOwnerStake.add(unstakedAmount);
 
       await notifier.reset();
 
       const tx = await staking.restake({ from: stakeOwner });
-      expectEvent.inLogs(tx.logs, EVENTS.restaked, { stakeOwner, amount: unstakedAmount });
+      expectEvent.inLogs(tx.logs, EVENTS.restaked, { stakeOwner, amount: unstakedAmount, totalStakedAmount });
       expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
 
       const currentState = await getState();
 
       expect(currentState.stakingBalance).to.be.bignumber.eq(prevState.stakingBalance);
       expect(currentState.stakeOwnerBalance).to.be.bignumber.eq(prevState.stakeOwnerBalance);
-      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(prevState.stakeOwnerStake.add(unstakedAmount));
+      expect(currentState.stakeOwnerStake).to.be.bignumber.eq(totalStakedAmount);
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber.eq(new BN(0));
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber.eq(new BN(0));
       expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.add(unstakedAmount));
@@ -1595,7 +1606,11 @@ contract('StakingContract', (accounts) => {
                 const stakedAmount = stakeAmounts[i];
                 const unstakedAmount = unstakeAmounts[i];
 
-                expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner: staker, amount: stakedAmount });
+                expectEvent.inLogs(tx.logs, EVENTS.withdrew, {
+                  stakeOwner: staker,
+                  amount: stakedAmount,
+                  totalStakedAmount: new BN(0),
+                });
 
                 const prevStakeOwnersState = prevStakeOwnersStates[i];
                 const currentStakeOwnerState = await getStakeOwnerState(staker);
