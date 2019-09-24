@@ -6,7 +6,7 @@ import "./IStakingContract.sol";
 import "./IStakeChangeNotifier.sol";
 
 /// @title Orbs staking smart contract.
-contract StakingContract is IStakingContract {
+contract StakingContract is IStakingContract, IMigratableStakingContract {
     using SafeMath for uint256;
 
     struct Stake {
@@ -41,7 +41,7 @@ contract StakingContract is IStakingContract {
 
     // The list of staking contracts which are approved by this contract. It would be only allowed to migrate a stake to
     // one of these contracts.
-    IStakingContract[] public approvedStakingContracts;
+    IMigratableStakingContract[] public approvedStakingContracts;
 
     // The address of the contract responsible for publishing stake change notifications.
     IStakeChangeNotifier public notifier;
@@ -70,8 +70,8 @@ contract StakingContract is IStakingContract {
     event AcceptedMigration(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event MigratedStake(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event MigrationManagerUpdated(address indexed migrationManager);
-    event MigrationDestinationAdded(IStakingContract indexed stakingContract);
-    event MigrationDestinationRemoved(IStakingContract indexed stakingContract);
+    event MigrationDestinationAdded(IMigratableStakingContract indexed stakingContract);
+    event MigrationDestinationRemoved(IMigratableStakingContract indexed stakingContract);
     event EmergencyManagerUpdated(address indexed emergencyManager);
     event StakeChangeNotifierUpdated(IStakeChangeNotifier indexed notifier);
     event StakeChangeNotificationFailed(IStakeChangeNotifier indexed notifier);
@@ -165,8 +165,8 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Adds a new contract to the list of approved staking contracts migration destinations.
-    /// @param _newStakingContract IStakingContract The new contract to add.
-    function addMigrationDestination(IStakingContract _newStakingContract) external onlyMigrationManager {
+    /// @param _newStakingContract IMigratableStakingContract The new contract to add.
+    function addMigrationDestination(IMigratableStakingContract _newStakingContract) external onlyMigrationManager {
         require(address(_newStakingContract) != address(0),
             "StakingContract::addMigrationDestination - address must not be 0");
         require(approvedStakingContracts.length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
@@ -184,8 +184,8 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Removes a contract from the list of approved staking contracts migration destinations.
-    /// @param _stakingContract IStakingContract The contract to remove.
-    function removeMigrationDestination(IStakingContract _stakingContract) external onlyMigrationManager {
+    /// @param _stakingContract IMigratableStakingContract The contract to remove.
+    function removeMigrationDestination(IMigratableStakingContract _stakingContract) external onlyMigrationManager {
         require(address(_stakingContract) != address(0),
             "StakingContract::removeMigrationDestination - address must not be 0");
 
@@ -302,8 +302,10 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
+    /// @param _newStakingContract IMigratableStakingContract The new staking contract which supports stake migration.
     /// @param _amount uint256 The amount of tokens to migrate.
-    function migrateStakedTokens(IStakingContract _newStakingContract, uint256 _amount) external onlyWhenStakesNotReleased {
+    function migrateStakedTokens(IMigratableStakingContract _newStakingContract, uint256 _amount) external
+        onlyWhenStakesNotReleased {
         require(isApprovedStakingContract(_newStakingContract),
             "StakingContract::migrateStakedTokens - migration destination wasn't approved");
         require(_amount > 0, "StakingContract::migrateStakedTokens - amount must be greater than 0");
@@ -442,8 +444,8 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Returns whether a specific staking contract was approved as a migration destination.
-    /// @param _stakingContract IStakingContract The staking contract to look for.
-    function isApprovedStakingContract(IStakingContract _stakingContract) public view returns (bool) {
+    /// @param _stakingContract IMigratableStakingContract The staking contract to look for.
+    function isApprovedStakingContract(IMigratableStakingContract _stakingContract) public view returns (bool) {
         (, bool exists) = findApprovedStakingContractIndex(_stakingContract);
         return exists;
     }
@@ -488,6 +490,7 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner.
+    /// @param _amount uint256 The amount of tokens to withdraw.
     ///
     /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
     /// period has passed (unless the contract was requested to release all stakes).
@@ -522,8 +525,8 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Returns an index of an existing approved staking contract.
-    /// @param _stakingContract IStakingContract The staking contract to look for.
-    function findApprovedStakingContractIndex(IStakingContract _stakingContract) private view returns (uint, bool) {
+    /// @param _stakingContract IMigratableStakingContract The staking contract to look for.
+    function findApprovedStakingContractIndex(IMigratableStakingContract _stakingContract) private view returns (uint, bool) {
         uint length = approvedStakingContracts.length;
         uint i;
         for (i = 0; i < length; ++i) {
