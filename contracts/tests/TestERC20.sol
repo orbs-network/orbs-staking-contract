@@ -34,4 +34,12 @@ contract TestERC20 is ERC20 {
 
         return super.transfer(to, value);
     }
+
+    function transferFrom(address from, address to, uint256 value) public returns (bool) {
+        if (failTransfer) {
+            return false;
+        }
+
+        return super.transferFrom(from, to, value);
+    }
 }
