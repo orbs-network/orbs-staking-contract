@@ -132,8 +132,8 @@ class StakingContract extends BaseContract {
     return this.contract.acceptMigration(StakingContract.getAddress(stakeOwner), amount, options);
   }
 
-  async migrateStakedTokens(stakingContract, options = {}) {
-    return this.contract.migrateStakedTokens(StakingContract.getAddress(stakingContract), options);
+  async migrateStakedTokens(stakingContract, amount, options = {}) {
+    return this.contract.migrateStakedTokens(StakingContract.getAddress(stakingContract), amount, options);
   }
 
   async distributeRewards(totalStake, stakeOwners, amounts, options = {}) {

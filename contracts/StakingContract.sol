@@ -68,7 +68,7 @@ contract StakingContract is IStakingContract {
     event Withdrew(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event Restaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event AcceptedMigration(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event MigratedStake(address indexed stakeOwner, uint256 amount);
+    event MigratedStake(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(IStakingContract indexed stakingContract);
     event MigrationDestinationRemoved(IStakingContract indexed stakingContract);
@@ -179,6 +179,7 @@ contract StakingContract is IStakingContract {
         }
 
         approvedStakingContracts.push(_newStakingContract);
+
         emit MigrationDestinationAdded(_newStakingContract);
     }
 
@@ -218,8 +219,9 @@ contract StakingContract is IStakingContract {
         notifyStakeChange(stakeOwner);
     }
 
-    /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown
-    /// period, after which msg.sender would be able to withdraw all of his tokens.
+    /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown period, after which
+    ///     msg.sender would be able to withdraw all of his tokens.
+    /// @param _amount uint256 The amount of tokens to unstake.
     function unstake(uint256 _amount) external {
         require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
 
@@ -300,28 +302,31 @@ contract StakingContract is IStakingContract {
     }
 
     /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
-    function migrateStakedTokens(IStakingContract _newStakingContract) external onlyWhenStakesNotReleased {
+    /// @param _amount uint256 The amount of tokens to migrate.
+    function migrateStakedTokens(IStakingContract _newStakingContract, uint256 _amount) external onlyWhenStakesNotReleased {
         require(isApprovedStakingContract(_newStakingContract),
             "StakingContract::migrateStakedTokens - migration destination wasn't approved");
+        require(_amount > 0, "StakingContract::migrateStakedTokens - amount must be greater than 0");
 
         address stakeOwner = msg.sender;
         Stake storage stakeData = stakes[stakeOwner];
-        uint256 amount = stakeData.amount;
+        uint256 stakedAmount = stakeData.amount;
 
-        require(amount > 0, "StakingContract::migrateStakedTokens - no staked tokens");
+        require(stakedAmount > 0, "StakingContract::migrateStakedTokens - no staked tokens");
+        require(_amount <= stakedAmount, "StakingContract::migrateStakedTokens - amount exceeds staked token balance");
 
-        stakeData.amount = 0;
+        stakeData.amount = stakedAmount.sub(_amount);
 
-        totalStakedTokens = totalStakedTokens.sub(amount);
+        totalStakedTokens = totalStakedTokens.sub(_amount);
 
         require(_newStakingContract.getToken() == token,
             "StakingContract::migrateStakedTokens - staked tokens must be the same");
-        require(token.approve(address(_newStakingContract), amount),
+        require(token.approve(address(_newStakingContract), _amount),
             "StakingContract::migrateStakedTokens - couldn't approve transfer");
 
-        emit MigratedStake(stakeOwner, amount);
+        emit MigratedStake(stakeOwner, _amount, stakeData.amount);
 
-        _newStakingContract.acceptMigration(stakeOwner, amount);
+        _newStakingContract.acceptMigration(stakeOwner, _amount);
     }
 
     /// @dev Distributes staking rewards to a list of addresses by directly adding rewards to their stakes.
