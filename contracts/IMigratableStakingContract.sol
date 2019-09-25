@@ -8,8 +8,9 @@ interface IMigratableStakingContract {
     function getToken() external view returns (IERC20);
 
     /// @dev Stakes ORBS tokens on behalf of msg.sender.
+    /// @param _stakeOwner address The specified stake owner.
     /// @param _amount uint256 The number of tokens to stake.
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    function acceptMigration(address _stakerOwner, uint256 _amount) external;
+    function acceptMigration(address _stakeOwner, uint256 _amount) external;
 }

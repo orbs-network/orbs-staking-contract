@@ -421,7 +421,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     }
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner.
-    /// @param _amount uint256 The amount of tokens to withdraw.
     ///
     /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
     /// period has passed (unless the contract was requested to release all stakes).
