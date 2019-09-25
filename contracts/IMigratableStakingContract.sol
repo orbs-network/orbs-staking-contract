@@ -13,4 +13,6 @@ interface IMigratableStakingContract {
     ///
     /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     function acceptMigration(address _stakeOwner, uint256 _amount) external;
+
+    event AcceptedMigration(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
 }

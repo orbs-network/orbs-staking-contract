@@ -50,4 +50,10 @@ interface IStakingContract {
     /// @param _newStakingContract IMigratableStakingContract The new staking contract which supports stake migration.
     /// @param _amount uint256 The amount of tokens to migrate.
     function migrateStakedTokens(IMigratableStakingContract _newStakingContract, uint256 _amount) external;
+
+    event Staked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event Unstaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event Withdrew(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event Restaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
+    event MigratedStake(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
 }

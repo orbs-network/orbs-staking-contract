@@ -56,12 +56,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     // Note: This can be turned off only once by the emergency manager of the contract.
     bool public releasingAllStakes = false;
 
-    event Staked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event Unstaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event Withdrew(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event Restaked(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event AcceptedMigration(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
-    event MigratedStake(address indexed stakeOwner, uint256 amount, uint256 totalStakedAmount);
     event MigrationManagerUpdated(address indexed migrationManager);
     event MigrationDestinationAdded(IMigratableStakingContract indexed stakingContract);
     event MigrationDestinationRemoved(IMigratableStakingContract indexed stakingContract);
