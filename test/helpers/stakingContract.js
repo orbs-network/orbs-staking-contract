@@ -49,10 +49,6 @@ class StakingContract extends BaseContract {
     };
   }
 
-  async getStakeChangeNotifier() {
-    return this.contract.notifier.call();
-  }
-
   async getMigrationManager() {
     return this.contract.migrationManager.call();
   }
@@ -90,14 +86,6 @@ class StakingContract extends BaseContract {
 
   async setEmergencyManager(manager, options = {}) {
     return this.contract.setEmergencyManager(StakingContract.getAddress(manager), options);
-  }
-
-  async setStakeChangeNotifier(notifier, options = {}) {
-    return this.contract.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
-  }
-
-  async notifyStakeChange(stakeOwner) {
-    return this.contract.notify(StakingContract.getAddress(stakeOwner));
   }
 
   async addMigrationDestination(newStakingContract, options = {}) {
@@ -165,15 +153,9 @@ class StakingContract extends BaseContract {
       migrationDestinationAdded: 'MigrationDestinationAdded',
       migrationDestinationRemoved: 'MigrationDestinationRemoved',
       emergencyManagerUpdated: 'EmergencyManagerUpdated',
-      stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
-      stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
       stoppedAcceptingNewStake: 'StoppedAcceptingNewStake',
       releasedAllStakes: 'ReleasedAllStakes',
     };
-  }
-
-  static getStakeChangeNotificationGasLimit() {
-    return 2000000;
   }
 }
 

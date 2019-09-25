@@ -8,10 +8,6 @@ contract StakingContractWrapper is StakingContract {
         IERC20 _token) public StakingContract(_cooldownPeriod, _migrationManager, _emergencyManager, _token) {
     }
 
-    function notify(address _stakeOwner) external {
-        super.notifyStakeChange(_stakeOwner);
-    }
-
     function getApprovedStakingContractsLength() external view returns (uint256) {
         return approvedStakingContracts.length;
     }
