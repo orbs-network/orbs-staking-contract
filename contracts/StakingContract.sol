@@ -27,7 +27,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     uint256 public totalStakedTokens;
 
     // The period (in seconds) between a stake owner's request to stop staking and being able to withdraw them.
-    uint256 public cooldownPeriod;
+    uint256 public cooldownPeriodInSec;
 
     // The address responsible for managing migration to a new staking contract.
     address public migrationManager;
@@ -94,19 +94,19 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     }
 
     /// @dev Initializes the staking contract.
-    /// @param _cooldownPeriod uint256 The period (in seconds) between a stake owner's request to stop staking and being
+    /// @param _cooldownPeriodInSec uint256 The period (in seconds) between a stake owner's request to stop staking and being
     ///     able to withdraw them.
     /// @param _migrationManager address The address responsible for managing migration to a new staking contract.
     /// @param _emergencyManager address The address responsible for emergency operations and graceful return of staked
     ///     tokens back to their owners.
     /// @param _token IERC20 The address of the ORBS token.
-    constructor(uint256 _cooldownPeriod, address _migrationManager, address _emergencyManager, IERC20 _token) public {
-        require(_cooldownPeriod > 0, "StakingContract::ctor - cooldown period must be greater than 0");
+    constructor(uint256 _cooldownPeriodInSec, address _migrationManager, address _emergencyManager, IERC20 _token) public {
+        require(_cooldownPeriodInSec > 0, "StakingContract::ctor - cooldown period must be greater than 0");
         require(_migrationManager != address(0), "StakingContract::ctor - migration manager must not be 0");
         require(_emergencyManager != address(0), "StakingContract::ctor - emergency manager must not be 0");
         require(address(_token) != address(0), "StakingContract::ctor - ORBS token must not be 0");
 
-        cooldownPeriod = _cooldownPeriod;
+        cooldownPeriodInSec = _cooldownPeriodInSec;
         migrationManager = _migrationManager;
         emergencyManager = _emergencyManager;
         token = _token;
@@ -211,7 +211,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // tokens in cooldown.
         stakeData.amount = stakedAmount.sub(_amount);
         stakeData.cooldownAmount = cooldownAmount.add(_amount);
-        stakeData.cooldownEndTime = now.add(cooldownPeriod);
+        stakeData.cooldownEndTime = now.add(cooldownPeriodInSec);
 
         totalStakedTokens = totalStakedTokens.sub(_amount);
 
