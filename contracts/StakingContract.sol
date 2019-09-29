@@ -95,10 +95,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Initializes the staking contract.
     /// @param _cooldownPeriod uint256 The period (in seconds) between a stake owner's request to stop staking and being
-    ///     able to withdraw them.
+    /// able to withdraw them.
     /// @param _migrationManager address The address responsible for managing migration to a new staking contract.
     /// @param _emergencyManager address The address responsible for emergency operations and graceful return of staked
-    ///     tokens back to their owners.
+    /// tokens back to their owners.
     /// @param _token IERC20 The address of the ORBS token.
     constructor(uint256 _cooldownPeriod, address _migrationManager, address _emergencyManager, IERC20 _token) public {
         require(_cooldownPeriod > 0, "StakingContract::ctor - cooldown period must be greater than 0");
@@ -176,10 +176,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         emit MigrationDestinationRemoved(_stakingContract);
     }
 
-    /// @dev Stakes ORBS tokens on behalf of msg.sender.
+    /// @dev Stakes ORBS tokens on behalf of msg.sender. This method assumes that the user has already approved at least
+    /// the required amount using ERC20 approve.
     /// @param _amount uint256 The amount of tokens to stake.
-    ///
-    /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     function stake(uint256 _amount) external onlyWhenAcceptingNewStakes {
         address stakeOwner = msg.sender;
 
@@ -189,7 +188,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     }
 
     /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown period, after which
-    ///     msg.sender would be able to withdraw all of his tokens.
+    /// msg.sender would be able to withdraw all of his tokens.
     /// @param _amount uint256 The amount of tokens to unstake.
     function unstake(uint256 _amount) external {
         require(_amount > 0, "StakingContract::unstake - amount must be greater than 0");
@@ -219,10 +218,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     }
 
-    /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender.
-    ///
-    /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
-    /// period has passed (unless the contract was requested to release all stakes).
+    /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender. Stake owners can withdraw their ORBS
+    /// tokens only after previously unstaking them and after the cooldown period has passed (unless the contract was
+    /// requested to release all stakes).
     function withdraw() external {
         address stakeOwner = msg.sender;
 
@@ -248,11 +246,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         emit Restaked(stakeOwner, cooldownAmount, stakeData.amount);
     }
 
-    /// @dev Stakes ORBS tokens on behalf of msg.sender.
+    /// @dev Stakes ORBS tokens on behalf of msg.sender. This method assumes that the user has already approved at least
+    /// the required amount using ERC20 approve.
     /// @param _stakeOwner address The specified stake owner.
     /// @param _amount uint256 The amount of tokens to stake.
-    ///
-    /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
     function acceptMigration(address _stakeOwner, uint256 _amount) external onlyWhenAcceptingNewStakes {
         uint256 totalStakedAmount = stake(_stakeOwner, _amount);
 
@@ -289,14 +286,13 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         _newStakingContract.acceptMigration(stakeOwner, _amount);
     }
 
-    /// @dev Distributes staking rewards to a list of addresses by directly adding rewards to their stakes.
+    /// @dev Distributes staking rewards to a list of addresses by directly adding rewards to their stakes. This method
+    /// assumes that the user has already approved at least the required amount using ERC20 approve. Since this is a
+    /// convenience method, we aren't concerned about reaching block gas limit by using large lists. We assume that
+    /// callers will be able to properly batch/paginate their requests.
     /// @param _totalAmount uint256 The total amount of rewards to distributes.
     /// @param _stakeOwners address[] The addresses of the stake owners.
     /// @param _amounts uint256[] The amounts of the rewards.
-    ///
-    /// Notes: This method assumes that the user has already approved at least the required amount using ERC20 approve.
-    /// Since this is a convenience method, we aren't concerned about reaching block gas limit by using large lists. We
-    /// assume that callers will be able to properly batch/paginate their requests.
     function distributeRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
         onlyWhenAcceptingNewStakes {
         require(_totalAmount > 0, "StakingContract::distributeRewards - total amount must be greater than 0");
@@ -336,17 +332,21 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Returns the stake of the specified stake owner (excluding unstaked tokens).
     /// @param _stakeOwner address The address to check.
+    /// @return uint256 The stake of the stake owner.
     function getStakeBalanceOf(address _stakeOwner) external view returns (uint256) {
         return stakes[_stakeOwner].amount;
     }
 
     /// @dev Returns the total amount staked tokens (excluding unstaked tokens).
+    /// @return uint256 The total staked tokens of all stake owners.
     function getTotalStakedTokens() external view returns (uint256) {
         return totalStakedTokens;
     }
 
     /// @dev Returns the time that the cooldown period ends (or ended) and the amount of tokens to be released.
     /// @param _stakeOwner address The address to check.
+    /// @return cooldownAmount uint256 The total tokens in cooldown.
+    /// @return cooldownEndTime uint256 The time when the cooldown period ends (in seconds).
     function getUnstakeStatus(address _stakeOwner) external view returns (uint256 cooldownAmount,
         uint256 cooldownEndTime) {
         Stake memory stakeData = stakes[_stakeOwner];
@@ -355,6 +355,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     }
 
     /// @dev Returns the address of the underlying staked token.
+    /// @return IERC20 The address of the token.
     function getToken() external view returns (IERC20) {
         return token;
     }
@@ -388,16 +389,16 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Returns whether a specific staking contract was approved as a migration destination.
     /// @param _stakingContract IMigratableStakingContract The staking contract to look for.
-    function isApprovedStakingContract(IMigratableStakingContract _stakingContract) public view returns (bool) {
-        (, bool exists) = findApprovedStakingContractIndex(_stakingContract);
-        return exists;
+    /// @return exists bool The approval status.
+    function isApprovedStakingContract(IMigratableStakingContract _stakingContract) public view returns (bool exists) {
+        (, exists) = findApprovedStakingContractIndex(_stakingContract);
     }
 
-    /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.
+    /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner. This method assumes that the user has
+    /// already approved at least the required amount using ERC20 approve.
     /// @param _stakeOwner address The specified stake owner.
     /// @param _amount uint256 The amount of tokens to stake.
-    ///
-    /// Note: This method assumes that the user has already approved at least the required amount using ERC20 approve.
+    /// @return totalStakedAmount uint256 The total stake of the stake owner.
     function stake(address _stakeOwner, uint256 _amount) private returns (uint256 totalStakedAmount) {
         require(_stakeOwner != address(0), "StakingContract::stake - stake owner can't be 0");
         require(_amount > 0, "StakingContract::stake - amount must be greater than 0");
@@ -414,10 +415,11 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
             "StakingContract::stake - insufficient allowance");
     }
 
-    /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner.
-    ///
-    /// Note: Stake owners can withdraw their ORBS tokens only after previously unstaking them and after the cooldown
-    /// period has passed (unless the contract was requested to release all stakes).
+    /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner. Stake owners can withdraw
+    /// their ORBS tokens only after previously unstaking them and after the cooldown period has passed (unless the
+    /// contract was requested to release all stakes).
+    /// @return withdrawnAmount uint256 The withdrawn token amount.
+    /// @return stakedAmount uint256 The remaining staked tokens amount.
     function withdraw(address _stakeOwner) private returns (uint256 withdrawnAmount, uint256 stakedAmount) {
         require(_stakeOwner != address(0), "StakingContract::withdraw - stake owner can't be 0");
 
@@ -450,15 +452,18 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Returns an index of an existing approved staking contract.
     /// @param _stakingContract IMigratableStakingContract The staking contract to look for.
-    function findApprovedStakingContractIndex(IMigratableStakingContract _stakingContract) private view returns (uint, bool) {
+    /// @return index uint The index of the located staking contract (in the case that it was found).
+    /// @return exists bool The search result.
+    function findApprovedStakingContractIndex(IMigratableStakingContract _stakingContract) private view returns
+        (uint index, bool exists) {
         uint length = approvedStakingContracts.length;
-        uint i;
-        for (i = 0; i < length; ++i) {
-            if (approvedStakingContracts[i] == _stakingContract) {
-                return (i, true);
+        for (index = 0; index < length; ++index) {
+            if (approvedStakingContracts[index] == _stakingContract) {
+                exists = true;
+                return;
             }
         }
 
-        return (i, false);
+        exists = false;
     }
 }
