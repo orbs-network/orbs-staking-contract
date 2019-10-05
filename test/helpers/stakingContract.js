@@ -3,24 +3,24 @@ import BaseContract from './baseContract';
 const StakingContractWrapper = artifacts.require('../../contracts/tests/StakingContractWrapper.sol');
 
 class StakingContract extends BaseContract {
-  constructor(cooldownPeriod, migrationManager, emergencyManager, token) {
+  constructor(cooldownPeriodInSec, migrationManager, emergencyManager, token) {
     super();
 
-    this.cooldownPeriod = cooldownPeriod;
+    this.cooldownPeriodInSec = cooldownPeriodInSec;
     this.migrationManager = migrationManager;
     this.emergencyManager = emergencyManager;
     this.token = token;
   }
 
-  static async new(cooldownPeriod, migrationManager, emergencyManager, token) {
-    const staking = new StakingContract(cooldownPeriod, migrationManager, emergencyManager, token);
+  static async new(cooldownPeriodInSec, migrationManager, emergencyManager, token) {
+    const staking = new StakingContract(cooldownPeriodInSec, migrationManager, emergencyManager, token);
     await staking.deploy();
 
     return staking;
   }
 
   async deploy() {
-    this.contract = await StakingContractWrapper.new(this.cooldownPeriod,
+    this.contract = await StakingContractWrapper.new(this.cooldownPeriodInSec,
       StakingContract.getAddress(this.migrationManager), StakingContract.getAddress(this.emergencyManager),
       StakingContract.getAddress(this.token));
   }
@@ -29,8 +29,8 @@ class StakingContract extends BaseContract {
     return this.contract.VERSION.call();
   }
 
-  async getCooldownPeriod() {
-    return this.contract.cooldownPeriod.call();
+  async getCooldownPeriodInSec() {
+    return this.contract.cooldownPeriodInSec.call();
   }
 
   async getStakeBalanceOf(stakeOwner) {

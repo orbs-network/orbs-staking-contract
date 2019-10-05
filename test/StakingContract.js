@@ -52,7 +52,7 @@ contract('StakingContract', (accounts) => {
       const cooldown = duration.minutes(5);
       const staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
 
-      expect(await staking.getCooldownPeriod()).to.be.bignumber.eq(cooldown);
+      expect(await staking.getCooldownPeriodInSec()).to.be.bignumber.eq(cooldown);
       expect(await staking.getMigrationManager()).to.eql(migrationManager);
       expect(await staking.getEmergencyManager()).to.eql(emergencyManager);
       expect(await staking.getToken()).to.eql(token.address);
@@ -607,7 +607,7 @@ contract('StakingContract', (accounts) => {
       expect(currentState.stakeOwnerUnstakedStatus.cooldownAmount).to.be.bignumber
         .eq(prevState.stakeOwnerUnstakedStatus.cooldownAmount.add(unstakeAmount));
       expect(currentState.stakeOwnerUnstakedStatus.cooldownEndTime).to.be.bignumber
-        .closeTo(now.add(await staking.getCooldownPeriod()), TIME_ERROR);
+        .closeTo(now.add(await staking.getCooldownPeriodInSec()), TIME_ERROR);
       expect(currentState.totalStakedTokens).to.be.bignumber.eq(prevState.totalStakedTokens.sub(unstakeAmount));
     };
 
