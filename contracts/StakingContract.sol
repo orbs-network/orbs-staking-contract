@@ -214,7 +214,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         totalStakedTokens = totalStakedTokens.sub(_amount);
 
-        emit Unstaked(stakeOwner, _amount, stakeData.amount);
+        emit Unstaked(stakeOwner, _amount, stakeData.amount); // David: why not use totalStakedTokens?
 
     }
 
