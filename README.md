@@ -2,6 +2,9 @@
 
 Orbs staking contract on Ethereum
 
+[High-level specification](docs/CONTRACT.md)
+
+
 ## Build
 
 To build the project, please run:
