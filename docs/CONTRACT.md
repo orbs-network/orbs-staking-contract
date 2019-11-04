@@ -2,7 +2,7 @@
 
 &nbsp;
 ## Introduction
-The Orbs network uses a flavor of DPoS as a sybil resistance mechanism. A unique property in Orbs’ PoS approach is that its native token, the ORBS token, is an ERC20 token living on the Ethereum blockchain. This yields a hybrid model in which Orbs validator selection process and governance are done on Ethereum and the Orbs mainnet queries Ethereum’s state whenever it needs to effectuate the decisions made on Ethereum. The ORBS token is the means to participate in the Orbs PoS ecosystem. Within the Orbs ecosystem there is a distinction between staking and delegation.
+The Orbs network uses a flavor of DPoS as a sybil resistance mechanism. A unique property in Orbs’ PoS approach is that its native token, the [ORBS token](https://etherscan.io/token/0xff56cc6b1e6ded347aa0b7676c85ab0b3d08b0fa), is an ERC20 token living on the Ethereum blockchain. This yields a hybrid model in which Orbs validator selection process and governance are done on Ethereum and the Orbs mainnet queries Ethereum’s state whenever it needs to effectuate the decisions made on Ethereum. The ORBS token is the means to participate in the Orbs PoS ecosystem. Within the Orbs ecosystem there is a distinction between staking and delegation.
 
 &nbsp;
 ### Staking
