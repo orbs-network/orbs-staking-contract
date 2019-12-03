@@ -3,7 +3,6 @@
 *.log
 .vscode/
 /node_modules
-/build
 /dist
 /coverage
 /coverageEnv
