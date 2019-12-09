@@ -1,6 +1,6 @@
 {
     "name": "orbs-staking-contract",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Orbs Staking Smart Contracts",
     "repository": {
         "type": "git",
