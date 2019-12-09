@@ -23,17 +23,14 @@
         "lint:js": "./node_modules/.bin/eslint .",
         "lint:sol": "./node_modules/.bin/solhint --max-warnings 0 \"contracts/**/*.sol\""
     },
-    "dependencies": {
+    "dependencies": {},
+    "devDependencies": {
         "babel-polyfill": "^6.26.0",
         "babel-preset-env": "^1.7.0",
-        "babel-register": "^6.26.0",
-        "openzeppelin-solidity": "2.0.1",
-        "truffle": "5.0.36"
-    },
-    "devDependencies": {
         "babel-preset-es2015": "^6.24.1",
         "babel-preset-stage-2": "^6.24.1",
         "babel-preset-stage-3": "^6.24.1",
+        "babel-register": "^6.26.0",
         "bn.js": "^5.0.0",
         "chai": "^4.2.0",
         "chai-as-promised": "^7.1.1",
@@ -47,10 +44,12 @@
         "eth-gas-reporter": "^0.2.11",
         "ganache-cli": "^6.7.0",
         "mocha-lcov-reporter": "^1.3.0",
+        "openzeppelin-solidity": "2.0.1",
         "openzeppelin-test-helpers": "^0.4.3",
         "solc": "0.4.26",
         "solhint": "^2.2.0",
         "solidity-coverage": "^0.6.7",
+        "truffle": "5.0.36",
         "truffle-flattener": "^1.4.2"
     }
 }
