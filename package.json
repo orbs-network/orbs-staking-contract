@@ -18,10 +18,10 @@
         "test": "scripts/test.sh",
         "coverage": "scripts/coverage.sh",
         "profile": "WITH_GAS_PROFILER=true scripts/test.sh",
-        "compile": "./node_modules/.bin/truffle compile",
+        "compile": "truffle compile",
         "lint": "yarn lint:js && yarn lint:sol",
-        "lint:js": "./node_modules/.bin/eslint .",
-        "lint:sol": "./node_modules/.bin/solhint --max-warnings 0 \"contracts/**/*.sol\""
+        "lint:js": "eslint .",
+        "lint:sol": "solhint --max-warnings 0 \"contracts/**/*.sol\"",
     },
     "dependencies": {},
     "devDependencies": {
