@@ -10,7 +10,7 @@
     "license": "MIT",
     "main": "truffle-config.js",
     "files": [
-        "build",
+        "build/abi",
         "contracts",
         "!contracts/tests"
     ],
@@ -22,6 +22,7 @@
         "lint": "yarn lint:js && yarn lint:sol",
         "lint:js": "eslint .",
         "lint:sol": "solhint --max-warnings 0 \"contracts/**/*.sol\"",
+        "export": "node scripts/export.js"
     },
     "dependencies": {},
     "devDependencies": {
