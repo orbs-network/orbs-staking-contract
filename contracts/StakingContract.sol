@@ -121,7 +121,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         migrationManager = _newMigrationManager;
 
-        emit MigrationManagerUpdated(migrationManager);
+        emit MigrationManagerUpdated(_newMigrationManager);
     }
 
     /// @dev Sets the address of the emergency manager.
@@ -133,7 +133,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emergencyManager = _newEmergencyManager;
 
-        emit EmergencyManagerUpdated(emergencyManager);
+        emit EmergencyManagerUpdated(_newEmergencyManager);
     }
 
     /// @dev Adds a new contract to the list of approved staking contracts migration destinations.
