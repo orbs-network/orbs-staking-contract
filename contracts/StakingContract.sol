@@ -208,7 +208,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Staked(stakeOwner, _amount, totalStakedAmount);
 
-        // Note: we aren't concerned with reentrancy due to the CEI pattern.
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
         notifyStakeChange(stakeOwner);
     }
 
@@ -241,7 +243,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Unstaked(stakeOwner, _amount, stakeData.amount);
 
-        // Note: we aren't concerned with reentrancy due to the CEI pattern.
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
         notifyStakeChange(stakeOwner);
     }
 
@@ -255,7 +259,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
 
-        // Note: we aren't concerned with reentrancy due to the CEI pattern.
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
         notifyStakeChange(stakeOwner);
     }
 
@@ -275,7 +281,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Restaked(stakeOwner, cooldownAmount, stakeData.amount);
 
-        // Note: we aren't concerned with reentrancy due to the CEI pattern.
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
         notifyStakeChange(stakeOwner);
     }
 
@@ -288,7 +296,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit AcceptedMigration(_stakeOwner, _amount, totalStakedAmount);
 
-        // Note: we aren't concerned with reentrancy due to the CEI pattern.
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
         notifyStakeChange(_stakeOwner);
     }
 
@@ -445,10 +455,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (, exists) = findApprovedStakingContractIndex(_stakingContract);
     }
 
-<<<<<<< HEAD
-    /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner. This method assumes that the user has
-    /// already approved at least the required amount using ERC20 approve.
-=======
     /// @dev Notifies of stake change event.
     /// @param _stakeOwner address The address of the subject stake owner.
     function notifyStakeChange(address _stakeOwner) internal {
@@ -468,7 +474,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     }
 
     /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.
->>>>>>> parent of e4a7dec... Remove state change notifications
     /// @param _stakeOwner address The specified stake owner.
     /// @param _amount uint256 The amount of tokens to stake.
     /// @return totalStakedAmount uint256 The total stake of the stake owner.
