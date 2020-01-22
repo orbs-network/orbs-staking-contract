@@ -1,4 +1,4 @@
-pragma solidity 0.4.26;
+pragma solidity 0.5.16;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -339,7 +339,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @param _totalAmount uint256 The total amount of rewards to distributes.
     /// @param _stakeOwners address[] The addresses of the stake owners.
     /// @param _amounts uint256[] The amounts of the rewards.
-    function distributeRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
+    function distributeRewards(uint256 _totalAmount, address[] calldata _stakeOwners, uint256[] calldata _amounts) external
         onlyWhenAcceptingNewStakes {
         require(_totalAmount > 0, "StakingContract::distributeRewards - total amount must be greater than 0");
 
@@ -378,7 +378,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
         // duplicating the loop.
-        for (i = 0; i < stakeOwnersLength; ++i) {
+        for (uint i = 0; i < stakeOwnersLength; ++i) {
             notifyStakeChange(_stakeOwners[i]);
         }
     }
@@ -429,10 +429,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Requests withdraw of released tokens of a list of addresses.
     /// @param _stakeOwners address[] The addresses of the stake owners.
-    function withdrawReleasedStakes(address[] _stakeOwners) external onlyWhenStakesReleased {
+    function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
-        uint i;
-        for (i = 0; i < stakeOwnersLength; ++i) {
+        for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
             (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
@@ -443,7 +442,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
         // duplicating the loop.
-        for (i = 0; i < stakeOwnersLength; ++i) {
+        for (uint i = 0; i < stakeOwnersLength; ++i) {
             notifyStakeChange(_stakeOwners[i]);
         }
     }
@@ -466,8 +465,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // its returned value.
 
         // solhint-disable avoid-low-level-calls
-        if (!address(notifier).call.gas(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT)(abi.encodeWithSelector(
-            notifier.stakeChange.selector, _stakeOwner))) {
+        (bool success,) = address(notifier).call.gas(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT)(abi.encodeWithSelector(
+            notifier.stakeChange.selector, _stakeOwner));
+        if (!success) {
             emit StakeChangeNotificationFailed(notifier);
         }
         // solhint-enable avoid-low-level-calls
@@ -538,7 +538,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         for (index = 0; index < length; ++index) {
             if (approvedStakingContracts[index] == _stakingContract) {
                 exists = true;
-                return;
+                return (index, exists);
             }
         }
 

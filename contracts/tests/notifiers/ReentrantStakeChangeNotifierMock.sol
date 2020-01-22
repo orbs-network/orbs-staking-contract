@@ -1,20 +1,20 @@
-pragma solidity 0.4.26;
+pragma solidity 0.5.16;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "../../IStakingContract.sol";
+import "../../StakingContract.sol";
 import "./StakeChangeNotifierMock.sol";
 
 /// @title A reentrancy test mockup for IStakeChangeNotifier. The purpose of this contract is to simulate the case when
 /// the migration manager has set a notifier which tries to reenter back to the staking contract.
 contract ReentrantStakeChangeNotifierMock is StakeChangeNotifierMock {
-    IStakingContract public staking;
+    StakingContract public staking;
     IERC20 public token;
     address public stakeOwner;
     uint256 public amount;
     bool public attacking;
 
-    constructor(IStakingContract _staking, IERC20 _token) public {
+    constructor(StakingContract _staking, IERC20 _token) public {
         staking = _staking;
         token = _token;
     }

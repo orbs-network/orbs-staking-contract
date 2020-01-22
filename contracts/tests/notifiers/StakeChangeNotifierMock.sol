@@ -1,4 +1,4 @@
-pragma solidity 0.4.26;
+pragma solidity 0.5.16;
 
 import "../../IStakeChangeNotifier.sol";
 
