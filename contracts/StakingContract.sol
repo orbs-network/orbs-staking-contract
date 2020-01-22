@@ -1,6 +1,6 @@
 pragma solidity 0.4.26;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./IStakingContract.sol";
 import "./IStakeChangeNotifier.sol";

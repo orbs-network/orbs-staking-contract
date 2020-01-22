@@ -139,7 +139,12 @@
     fs-extra "^8.1.0"
     try-require "^1.2.1"
 
-"@openzeppelin/test-helpers@^0.4.3":
+"@openzeppelin/contracts@2.3.0":
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-2.3.0.tgz#043961a6e37b87e0eb80647c7528a7c62c41361f"
+  integrity sha512-lf8C3oULQAnsu3OTRP4tP5/ddfil6l65Lg3JQCwAIgc99vZ1jz5qeBoETGGGmczxt+bIyMI06WPP2apC74EZag==
+
+"@openzeppelin/test-helpers@^0.5.4":
   version "0.5.4"
   resolved "https://registry.yarnpkg.com/@openzeppelin/test-helpers/-/test-helpers-0.5.4.tgz#2366703c37849dc1b3768bff41ab9213aee28c5a"
   integrity sha512-sSjft0CcmC6Pwsd/j1uakk2MLamEH4mmphVlF5hzUUVyoxL0KGCbxQgBoLoEpUbw2M9HtFAEMJJPGccEcb9Cog==
@@ -4696,11 +4701,6 @@ onetime@^5.1.0:
   integrity sha512-5NcSkPHhwTVFIQN+TUqXoS5+dlElHXdpAWu9I0HP20YOtIi+aZ0Ct82jdlILDxjLEAWwvm+qj1m6aEtsDVmm6Q==
   dependencies:
     mimic-fn "^2.1.0"
-
-openzeppelin-solidity@2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/openzeppelin-solidity/-/openzeppelin-solidity-2.0.1.tgz#c58ab35e2aa6268308a9a9a7d19475e2ce7a7b22"
-  integrity sha512-aqQTFy5I1WnbJ3KMvz3enTiPy4r9IUKb96ZxrWxur1K1nBvNg4ovsU4Xzhox7lhTZ1TvihIGjbWubLvH1azRLQ==
 
 optimist@^0.6.1:
   version "0.6.1"
