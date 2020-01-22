@@ -1,6 +1,6 @@
 pragma solidity 0.4.26;
 
-import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title An interface for staking contracts which support stake migration.
 interface IMigratableStakingContract {
