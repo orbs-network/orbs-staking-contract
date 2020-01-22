@@ -1,6 +1,6 @@
 {
     "name": "orbs-staking-contract",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Orbs Staking Smart Contracts",
     "repository": {
         "type": "git",
@@ -10,7 +10,7 @@
     "license": "MIT",
     "main": "truffle-config.js",
     "files": [
-        "build",
+        "build/abi",
         "contracts",
         "!contracts/tests"
     ],
@@ -18,22 +18,20 @@
         "test": "scripts/test.sh",
         "coverage": "scripts/coverage.sh",
         "profile": "WITH_GAS_PROFILER=true scripts/test.sh",
-        "compile": "./node_modules/.bin/truffle compile",
+        "compile": "truffle compile",
         "lint": "yarn lint:js && yarn lint:sol",
-        "lint:js": "./node_modules/.bin/eslint .",
-        "lint:sol": "./node_modules/.bin/solhint --max-warnings 0 \"contracts/**/*.sol\""
+        "lint:js": "eslint .",
+        "lint:sol": "solhint --max-warnings 0 \"contracts/**/*.sol\"",
+        "export": "node scripts/export.js"
     },
-    "dependencies": {
+    "dependencies": {},
+    "devDependencies": {
         "babel-polyfill": "^6.26.0",
         "babel-preset-env": "^1.7.0",
-        "babel-register": "^6.26.0",
-        "openzeppelin-solidity": "2.0.1",
-        "truffle": "5.0.36"
-    },
-    "devDependencies": {
         "babel-preset-es2015": "^6.24.1",
         "babel-preset-stage-2": "^6.24.1",
         "babel-preset-stage-3": "^6.24.1",
+        "babel-register": "^6.26.0",
         "bn.js": "^5.0.0",
         "chai": "^4.2.0",
         "chai-as-promised": "^7.1.1",
@@ -46,11 +44,14 @@
         "eslint-plugin-react": "^7.14.3",
         "eth-gas-reporter": "^0.2.11",
         "ganache-cli": "^6.7.0",
+        "mkdirp": "^0.5.1",
         "mocha-lcov-reporter": "^1.3.0",
+        "openzeppelin-solidity": "2.0.1",
         "openzeppelin-test-helpers": "^0.4.3",
         "solc": "0.4.26",
         "solhint": "^2.2.0",
         "solidity-coverage": "^0.6.7",
+        "truffle": "5.0.36",
         "truffle-flattener": "^1.4.2"
     }
 }
