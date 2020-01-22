@@ -163,11 +163,13 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     function addMigrationDestination(IMigratableStakingContract _newStakingContract) external onlyMigrationManager {
         require(address(_newStakingContract) != address(0),
             "StakingContract::addMigrationDestination - address must not be 0");
-        require(approvedStakingContracts.length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
+
+        uint length = approvedStakingContracts.length;
+        require(length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
             "StakingContract::addMigrationDestination - can't add more staking contracts");
 
         // Check for duplicates.
-        for (uint i = 0; i < approvedStakingContracts.length; ++i) {
+        for (uint i = 0; i < length; ++i) {
             require(approvedStakingContracts[i] != _newStakingContract,
                 "StakingContract::addMigrationDestination - can't add a duplicate staking contract");
         }
