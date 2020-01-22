@@ -187,13 +187,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (uint i, bool exists) = findApprovedStakingContractIndex(_stakingContract);
         require(exists, "StakingContract::removeMigrationDestination - staking contract doesn't exist");
 
-        while (i < approvedStakingContracts.length - 1) {
-            approvedStakingContracts[i] = approvedStakingContracts[i + 1];
-            i++;
-        }
-
-        delete approvedStakingContracts[i];
-        approvedStakingContracts.length--;
+        // Swap the requested element with the last element and then delete it using pop/
+        approvedStakingContracts[i] = approvedStakingContracts[approvedStakingContracts.length - 1];
+        approvedStakingContracts.pop();
 
         emit MigrationDestinationRemoved(_stakingContract);
     }
