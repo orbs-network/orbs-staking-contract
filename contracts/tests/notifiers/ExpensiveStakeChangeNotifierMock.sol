@@ -15,7 +15,7 @@ contract ExpensiveStakeChangeNotifierMock is StakeChangeNotifierMock {
         gasCost = _gasCost;
     }
 
-    function stakeChange(address) public {
+    function stakeChange(address, uint256, bool) public {
         uint256 remainingGas = gasleft() + TRANSACTION_GAS_COST - gasCost;
 
         while (remainingGas <= gasleft()) {

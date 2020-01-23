@@ -15,6 +15,13 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         uint256 cooldownEndTime;
     }
 
+    struct WithdrawResult {
+        uint256 withdrawnAmount;
+        uint256 stakedAmount;
+        uint256 stakedAmountDiff;
+        bool stakedAmountDiffSign;
+    }
+
     // The version of the smart contract.
     uint public constant VERSION = 1;
 
@@ -209,7 +216,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner);
+        notifyStakeChange(stakeOwner, _amount, true);
     }
 
     /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown period, after which
@@ -244,7 +251,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner);
+        notifyStakeChange(stakeOwner, _amount, false);
     }
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender. Stake owners can withdraw their ORBS
@@ -253,14 +260,14 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     function withdraw() external {
         address stakeOwner = msg.sender;
 
-        (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
+        WithdrawResult memory res = withdraw(stakeOwner);
 
-        emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
+        emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
 
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner);
+        notifyStakeChange(stakeOwner, res.stakedAmountDiff, res.stakedAmountDiffSign);
     }
 
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
@@ -282,7 +289,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner);
+        notifyStakeChange(stakeOwner, cooldownAmount, true);
     }
 
     /// @dev Stakes ORBS tokens on behalf of msg.sender. This method assumes that the user has already approved at least
@@ -297,7 +304,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(_stakeOwner);
+        notifyStakeChange(_stakeOwner, _amount, true);
     }
 
     /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
@@ -377,7 +384,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
         // duplicating the loop.
         for (uint i = 0; i < stakeOwnersLength; ++i) {
-            notifyStakeChange(_stakeOwners[i]);
+            notifyStakeChange(_stakeOwners[i], _amounts[i], true);
         }
     }
 
@@ -429,19 +436,23 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @param _stakeOwners address[] The addresses of the stake owners.
     function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
+        WithdrawResult[] memory results = new WithdrawResult[](stakeOwnersLength);
+
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
-            (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
+            WithdrawResult memory res = withdraw(stakeOwner);
+            results[i] = res;
 
-            emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
+            emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
         }
 
         // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
         // duplicating the loop.
         for (uint i = 0; i < stakeOwnersLength; ++i) {
-            notifyStakeChange(_stakeOwners[i]);
+            WithdrawResult memory res = results[i];
+            notifyStakeChange(_stakeOwners[i], res.stakedAmountDiff, res.stakedAmountDiffSign);
         }
     }
 
@@ -454,7 +465,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Notifies of stake change event.
     /// @param _stakeOwner address The address of the subject stake owner.
-    function notifyStakeChange(address _stakeOwner) internal {
+    /// @param _amount int256 The difference in the total staked amount.
+    /// @param _sign bool The sign of the added (true) or subtracted (false) amount.
+    function notifyStakeChange(address _stakeOwner, uint256 _amount, bool _sign) internal {
         if (address(notifier) == address(0)) {
             return;
         }
@@ -464,7 +477,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         // solhint-disable avoid-low-level-calls
         (bool success,) = address(notifier).call.gas(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT)(abi.encodeWithSelector(
-            notifier.stakeChange.selector, _stakeOwner));
+            notifier.stakeChange.selector, _stakeOwner, _amount, _sign));
         if (!success) {
             emit StakeChangeNotificationFailed(notifier);
         }
@@ -494,36 +507,37 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @dev Requests to withdraw all of staked ORBS tokens back to the specified stake owner. Stake owners can withdraw
     /// their ORBS tokens only after previously unstaking them and after the cooldown period has passed (unless the
     /// contract was requested to release all stakes).
-    /// @return withdrawnAmount uint256 The withdrawn token amount.
-    /// @return stakedAmount uint256 The remaining staked tokens amount.
-    function withdraw(address _stakeOwner) private returns (uint256 withdrawnAmount, uint256 stakedAmount) {
+    /// @return res WithdrawResult The result of the withdraw operation.
+    function withdraw(address _stakeOwner) private returns (WithdrawResult memory res) {
         require(_stakeOwner != address(0), "StakingContract::withdraw - stake owner can't be 0");
 
         Stake storage stakeData = stakes[_stakeOwner];
-        stakedAmount = stakeData.amount;
-
-        withdrawnAmount = stakeData.cooldownAmount;
+        res.stakedAmount = stakeData.amount;
+        res.withdrawnAmount = stakeData.cooldownAmount;
 
         if (!releasingAllStakes) {
-            require(withdrawnAmount > 0, "StakingContract::withdraw - no unstaked tokens");
+            require(res.withdrawnAmount > 0, "StakingContract::withdraw - no unstaked tokens");
             require(stakeData.cooldownEndTime <= now, "StakingContract::withdraw - tokens are still in cooldown");
         } else {
             // If the contract was requested to release all stakes - allow to withdraw all staked and unstaked tokens.
-            withdrawnAmount = withdrawnAmount.add(stakedAmount);
+            res.withdrawnAmount = res.withdrawnAmount.add(res.stakedAmount);
+            res.stakedAmountDiff = res.stakedAmount;
+            res.stakedAmountDiffSign = false;
 
-            require(withdrawnAmount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
+            require(res.withdrawnAmount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
 
             stakeData.amount = 0;
 
-            totalStakedTokens = totalStakedTokens.sub(stakedAmount);
+            totalStakedTokens = totalStakedTokens.sub(res.stakedAmount);
 
-            stakedAmount = 0;
+            res.stakedAmount = 0;
         }
 
         stakeData.cooldownAmount = 0;
         stakeData.cooldownEndTime = 0;
 
-        require(token.transfer(_stakeOwner, withdrawnAmount), "StakingContract::withdraw - couldn't transfer stake");
+        require(token.transfer(_stakeOwner, res.withdrawnAmount),
+            "StakingContract::withdraw - couldn't transfer stake");
     }
 
     /// @dev Returns an index of an existing approved staking contract.
