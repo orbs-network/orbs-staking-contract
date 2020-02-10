@@ -21,10 +21,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
 
     // The mapping between stake owners and their data.
-    mapping(address => Stake) public stakes;
+    mapping(address => Stake) internal stakes;
 
     // Total amount of staked tokens (not including unstaked tokes in cooldown or pending withdrawal).
-    uint256 public totalStakedTokens;
+    uint256 internal totalStakedTokens;
 
     // The period (in seconds) between a stake owner's request to stop staking and being able to withdraw them.
     uint256 public cooldownPeriodInSec;
@@ -40,7 +40,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     IMigratableStakingContract[] public approvedStakingContracts;
 
     // The address of the ORBS token.
-    IERC20 public token;
+    IERC20 internal token;
 
     // Represents whether the contract accepts new staking requests. Please note, that even when it's turned off,
     // it'd be still possible to unstake or withdraw tokens.
