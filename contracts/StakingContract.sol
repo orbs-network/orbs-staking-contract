@@ -3,6 +3,7 @@ pragma solidity 0.5.16;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./IStakingContract.sol";
+import "./IStakeChangeNotifier.sol";
 
 /// @title Orbs staking smart contract.
 contract StakingContract is IStakingContract, IMigratableStakingContract {
@@ -19,6 +20,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     // The maximum number of approved staking contracts as migration destinations.
     uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
+
+    // The gas limit for stake change notifications.
+    uint public constant STAKE_CHANGE_NOTIFICATION_GAS_LIMIT = 2000000;
 
     // The mapping between stake owners and their data.
     mapping(address => Stake) internal stakes;
@@ -38,6 +42,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     // The list of staking contracts which are approved by this contract. It would be only allowed to migrate a stake to
     // one of these contracts.
     IMigratableStakingContract[] public approvedStakingContracts;
+
+    // The address of the contract responsible for publishing stake change notifications.
+    IStakeChangeNotifier public notifier;
 
     // The address of the ORBS token.
     IERC20 internal token;
@@ -60,6 +67,8 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     event MigrationDestinationAdded(IMigratableStakingContract indexed stakingContract);
     event MigrationDestinationRemoved(IMigratableStakingContract indexed stakingContract);
     event EmergencyManagerUpdated(address indexed emergencyManager);
+    event StakeChangeNotifierUpdated(IStakeChangeNotifier indexed notifier);
+    event StakeChangeNotificationFailed(IStakeChangeNotifier indexed notifier);
     event StoppedAcceptingNewStake();
     event ReleasedAllStakes();
 
@@ -136,6 +145,19 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         emit EmergencyManagerUpdated(_newEmergencyManager);
     }
 
+    /// @dev Sets the address of the stake change notifier contract.
+    /// @param _newNotifier IStakeChangeNotifier The address of the new stake change notifier contract.
+    ///
+    /// Note: it's allowed to reset the notifier to a zero address.
+    function setStakeChangeNotifier(IStakeChangeNotifier _newNotifier) external onlyMigrationManager {
+        require(notifier != _newNotifier,
+            "StakingContract::setStakeChangeNotifier - address must be different than the current address");
+
+        notifier = _newNotifier;
+
+        emit StakeChangeNotifierUpdated(notifier);
+    }
+
     /// @dev Adds a new contract to the list of approved staking contracts migration destinations.
     /// @param _newStakingContract IMigratableStakingContract The new contract to add.
     function addMigrationDestination(IMigratableStakingContract _newStakingContract) external onlyMigrationManager {
@@ -183,6 +205,11 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         uint256 totalStakedAmount = stake(stakeOwner, _amount);
 
         emit Staked(stakeOwner, _amount, totalStakedAmount);
+
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        notifyStakeChange(stakeOwner);
     }
 
     /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown period, after which
@@ -214,6 +241,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Unstaked(stakeOwner, _amount, stakeData.amount);
 
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        notifyStakeChange(stakeOwner);
     }
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender. Stake owners can withdraw their ORBS
@@ -225,6 +256,11 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
 
         emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
+
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        notifyStakeChange(stakeOwner);
     }
 
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
@@ -242,6 +278,11 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         totalStakedTokens = totalStakedTokens.add(cooldownAmount);
 
         emit Restaked(stakeOwner, cooldownAmount, stakeData.amount);
+
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        notifyStakeChange(stakeOwner);
     }
 
     /// @dev Stakes ORBS tokens on behalf of msg.sender. This method assumes that the user has already approved at least
@@ -252,6 +293,11 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         uint256 totalStakedAmount = stake(_stakeOwner, _amount);
 
         emit AcceptedMigration(_stakeOwner, _amount, totalStakedAmount);
+
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        notifyStakeChange(_stakeOwner);
     }
 
     /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
@@ -326,6 +372,13 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         require(_totalAmount == expectedTotalAmount, "StakingContract::distributeRewards - incorrect total amount");
 
         totalStakedTokens = totalStakedTokens.add(_totalAmount);
+
+        // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
+        // that any external call is made after every check and effect have took place. Unfortunately, this results in
+        // duplicating the loop.
+        for (i = 0; i < stakeOwnersLength; ++i) {
+            notifyStakeChange(_stakeOwners[i]);
+        }
     }
 
     /// @dev Returns the stake of the specified stake owner (excluding unstaked tokens).
@@ -376,12 +429,20 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @param _stakeOwners address[] The addresses of the stake owners.
     function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
-        for (uint i = 0; i < stakeOwnersLength; ++i) {
+        uint i;
+        for (i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
             (uint256 withdrawnAmount, uint256 totalStakedAmount) = withdraw(stakeOwner);
 
             emit Withdrew(stakeOwner, withdrawnAmount, totalStakedAmount);
+        }
+
+        // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
+        // that any external call is made after every check and effect have took place. Unfortunately, this results in
+        // duplicating the loop.
+        for (i = 0; i < stakeOwnersLength; ++i) {
+            notifyStakeChange(_stakeOwners[i]);
         }
     }
 
@@ -392,8 +453,25 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (, exists) = findApprovedStakingContractIndex(_stakingContract);
     }
 
-    /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner. This method assumes that the user has
-    /// already approved at least the required amount using ERC20 approve.
+    /// @dev Notifies of stake change event.
+    /// @param _stakeOwner address The address of the subject stake owner.
+    function notifyStakeChange(address _stakeOwner) internal {
+        if (address(notifier) == address(0)) {
+            return;
+        }
+
+        // In order to handle the case when the stakeChange method reverts, we will invoke it using EVM call and check
+        // its returned value.
+
+        // solhint-disable avoid-low-level-calls
+        if (!address(notifier).call.gas(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT)(abi.encodeWithSelector(
+            notifier.stakeChange.selector, _stakeOwner))) {
+            emit StakeChangeNotificationFailed(notifier);
+        }
+        // solhint-enable avoid-low-level-calls
+    }
+
+    /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.
     /// @param _stakeOwner address The specified stake owner.
     /// @param _amount uint256 The amount of tokens to stake.
     /// @return totalStakedAmount uint256 The total stake of the stake owner.
