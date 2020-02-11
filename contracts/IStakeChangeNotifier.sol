@@ -7,4 +7,9 @@ interface IStakeChangeNotifier {
     /// @param _amount uint256 The difference in the total staked amount.
     /// @param _sign bool The sign of the added (true) or subtracted (false) amount.
     function stakeChange(address _stakeOwner, uint256 _amount, bool _sign) external;
+
+    /// @dev Notifies of stake migration event.
+    /// @param _stakeOwner address The address of the subject stake owner.
+    /// @param _amount uint256 The migrated amount.
+    function stakeMigration(address _stakeOwner, uint256 _amount) external;
 }

@@ -154,7 +154,7 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('settong of the stake change notifier', async () => {
+  describe('setting of the stake change notifier', async () => {
     const testSetStakeChangeNotifier = async (staking, from, to) => {
       expect(await staking.getStakeChangeNotifier()).to.eql(from);
 
@@ -207,69 +207,133 @@ contract('StakingContract', (accounts) => {
     });
   });
 
-  describe('stake change notifications', async () => {
+  describe('notifications', async () => {
     let staking;
     beforeEach(async () => {
       const cooldown = duration.minutes(5);
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
     });
 
-    context('without a notifier', async () => {
-      it('should succeed', async () => {
-        const stakeOwner = accounts[6];
-        const amount = new BN(123);
-        const tx = await staking.stakeChange(stakeOwner, amount);
-        expect(tx.logs).to.be.empty();
-      });
-    });
-
-    context('with an EOA notifier', async () => {
-      const notifier = accounts[1];
-      beforeEach(async () => {
-        await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+    describe('stake change ', async () => {
+      context('without a notifier', async () => {
+        it('should succeed', async () => {
+          const stakeOwner = accounts[6];
+          const amount = new BN(123);
+          const tx = await staking.stakeChange(stakeOwner, amount);
+          expect(tx.logs).to.be.empty();
+        });
       });
 
-      it('should revert', async () => {
-        const stakeOwner = accounts[5];
-        const amount = new BN(123);
-        await expectRevert.unspecified(staking.stakeChange(stakeOwner, amount));
-      });
-    });
-
-    context('with a contract notifier', async () => {
-      let notifier;
-      beforeEach(async () => {
-        notifier = await StakeChangeNotifier.new();
-        await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
-      });
-
-      it('should succeed', async () => {
-        let { stakeOwners, amounts } = await notifier.getNotification();
-        expect(stakeOwners).to.be.empty();
-        expect(amounts).to.be.empty();
-
-        const stakeOwner = accounts[3];
-        const amount = new BN(1000);
-        await staking.stakeChange(stakeOwner, amount);
-
-        ({ stakeOwners, amounts } = await notifier.getNotification());
-        expect(stakeOwners).to.eql([stakeOwner]);
-        expect(amounts).to.eqlBN([amount]);
-      });
-
-      context('with a reverting notifier', async () => {
+      context('with an EOA notifier', async () => {
+        const notifier = accounts[1];
         beforeEach(async () => {
-          await notifier.setRevert(true);
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
         });
 
         it('should revert', async () => {
-          const { stakeOwners, amounts } = await notifier.getNotification();
+          const stakeOwner = accounts[5];
+          const amount = new BN(123);
+          await expectRevert.unspecified(staking.stakeChange(stakeOwner, amount));
+        });
+      });
+
+      context('with a contract notifier', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should succeed', async () => {
+          let { stakeOwners, amounts } = await notifier.getNotification();
           expect(stakeOwners).to.be.empty();
           expect(amounts).to.be.empty();
 
           const stakeOwner = accounts[3];
+          const amount = new BN(1000);
+          await staking.stakeChange(stakeOwner, amount);
+
+          ({ stakeOwners, amounts } = await notifier.getNotification());
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([amount]);
+        });
+
+        context('with a reverting notifier', async () => {
+          beforeEach(async () => {
+            await notifier.setRevert(true);
+          });
+
+          it('should revert', async () => {
+            const { stakeOwners, amounts } = await notifier.getNotification();
+            expect(stakeOwners).to.be.empty();
+            expect(amounts).to.be.empty();
+
+            const stakeOwner = accounts[3];
+            const amount = new BN(123);
+            await expectRevert(staking.stakeChange(stakeOwner, amount), 'StakeChangeNotifierMock: revert');
+          });
+        });
+      });
+    });
+
+    describe('stake migration ', async () => {
+      context('without a notifier', async () => {
+        it('should succeed', async () => {
+          const stakeOwner = accounts[6];
           const amount = new BN(123);
-          await expectRevert(staking.stakeChange(stakeOwner, amount), 'StakeChangeNotifierMock: revert');
+          const tx = await staking.stakeMigration(stakeOwner, amount);
+          expect(tx.logs).to.be.empty();
+        });
+      });
+
+      context('with an EOA notifier', async () => {
+        const notifier = accounts[1];
+        beforeEach(async () => {
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should revert', async () => {
+          const stakeOwner = accounts[5];
+          const amount = new BN(123);
+          await expectRevert.unspecified(staking.stakeMigration(stakeOwner, amount));
+        });
+      });
+
+      context('with a contract notifier', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should succeed', async () => {
+          let { stakeOwners, amounts } = await notifier.getNotification();
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
+
+          const stakeOwner = accounts[3];
+          const amount = new BN(1000);
+          await staking.stakeMigration(stakeOwner, amount);
+
+          ({ stakeOwners, amounts } = await notifier.getNotification());
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([amount]);
+        });
+
+        context('with a reverting notifier', async () => {
+          beforeEach(async () => {
+            await notifier.setRevert(true);
+          });
+
+          it('should revert', async () => {
+            const { stakeOwners, amounts } = await notifier.getNotification();
+            expect(stakeOwners).to.be.empty();
+            expect(amounts).to.be.empty();
+
+            const stakeOwner = accounts[3];
+            const amount = new BN(123);
+            await expectRevert(staking.stakeMigration(stakeOwner, amount), 'StakeChangeNotifierMock: revert');
+          });
         });
       });
     });
@@ -1269,8 +1333,8 @@ contract('StakingContract', (accounts) => {
       expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount, totalStakedAmount });
 
       let { stakeOwners, amounts } = await notifier.getNotification();
-      expect(stakeOwners).to.be.empty();
-      expect(amounts).to.be.empty();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([amount]);
 
       ({ stakeOwners, amounts } = await migrationNotifier.getNotification());
       expect(stakeOwners).to.eql([stakeOwner]);
@@ -1349,6 +1413,7 @@ contract('StakingContract', (accounts) => {
         const remainder = new BN(100);
         await testMigration(staking, notifier, stakeOwner, stake.sub(remainder), migrationDestinations[0],
           migrationNotifiers[0]);
+        await notifier.reset();
         await testMigration(staking, notifier, stakeOwner, remainder, migrationDestinations[1],
           migrationNotifiers[1]);
       });
@@ -1367,8 +1432,8 @@ contract('StakingContract', (accounts) => {
           });
 
           let { stakeOwners, amounts } = await notifier.getNotification();
-          expect(stakeOwners).to.be.empty();
-          expect(amounts).to.be.empty();
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([stake]);
 
           ({ stakeOwners, amounts } = await migrationNotifier.getNotification());
           expect(stakeOwners).to.eql([stakeOwner]);

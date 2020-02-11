@@ -12,6 +12,10 @@ contract StakingContractWrapper is StakingContract {
         super.stakeChange(_stakeOwner, _amount, _sign);
     }
 
+    function notifyStakeMigration(address _stakeOwner, uint256 _amount) external {
+        super.stakeMigration(_stakeOwner, _amount);
+    }
+
     function getApprovedStakingContractsLength() external view returns (uint256) {
         return approvedStakingContracts.length;
     }

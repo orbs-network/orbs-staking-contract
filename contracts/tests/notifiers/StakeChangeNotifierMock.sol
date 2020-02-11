@@ -39,4 +39,10 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
         amountsNotifications.push(_amount);
         amountsSignsNotifications.push(_sign);
     }
+
+    function stakeMigration(address _stakerOwner, uint256 _amount) public notReverting {
+        stakeOwnersNotifications.push(_stakerOwner);
+        amountsNotifications.push(_amount);
+        amountsSignsNotifications.push(true);
+    }
 }

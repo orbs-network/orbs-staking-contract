@@ -331,6 +331,11 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         emit MigratedStake(stakeOwner, _amount, stakeData.amount);
 
         _newStakingContract.acceptMigration(stakeOwner, _amount);
+
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        stakeMigration(stakeOwner, _amount);
     }
 
     /// @dev Distributes staking rewards to a list of addresses by directly adding rewards to their stakes. This method
@@ -459,16 +464,32 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (, exists) = findApprovedStakingContractIndex(_stakingContract);
     }
 
+    /// @dev Returns whether stake change notification is enabled.
+    function shouldNotifyStakeChange() view internal returns (bool) {
+        return address(notifier) != address(0);
+    }
+
     /// @dev Notifies of stake change events.
     /// @param _stakeOwner address The address of the subject stake owner.
     /// @param _amount int256 The difference in the total staked amount.
     /// @param _sign bool The sign of the added (true) or subtracted (false) amount.
     function stakeChange(address _stakeOwner, uint256 _amount, bool _sign) internal {
-        if (address(notifier) == address(0)) {
+        if (!shouldNotifyStakeChange()) {
             return;
         }
 
         notifier.stakeChange(_stakeOwner, _amount, _sign);
+    }
+
+    /// @dev Notifies of stake migration event.
+    /// @param _stakeOwner address The address of the subject stake owner.
+    /// @param _amount uint256 The migrated amount.
+    function stakeMigration(address _stakeOwner, uint256 _amount) internal {
+        if (!shouldNotifyStakeChange()) {
+            return;
+        }
+
+        notifier.stakeMigration(_stakeOwner, _amount);
     }
 
     /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.
