@@ -102,6 +102,11 @@ class StakingContract extends BaseContract {
     return this.contract.notifyStakeChange(StakingContract.getAddress(stakeOwner), amount, !amount.isNeg());
   }
 
+  async stakeChangeBatch(stakeOwners, amounts) {
+    return this.contract.notifyStakeChangeBatch(stakeOwners.map((stakeOwner) => StakingContract.getAddress(stakeOwner)),
+      amounts, amounts.map((amount) => !amount.isNeg()));
+  }
+
   async stakeMigration(stakeOwner, amount) {
     return this.contract.notifyStakeMigration(StakingContract.getAddress(stakeOwner), amount);
   }

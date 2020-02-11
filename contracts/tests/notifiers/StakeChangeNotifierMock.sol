@@ -34,14 +34,29 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
         return stakeOwnersNotificationsLength;
     }
 
-    function stakeChange(address _stakerOwner, uint256 _amount, bool _sign) public notReverting {
-        stakeOwnersNotifications.push(_stakerOwner);
+    function stakeChange(address _stakeOwner, uint256 _amount, bool _sign) public notReverting {
+        stakeOwnersNotifications.push(_stakeOwner);
         amountsNotifications.push(_amount);
         amountsSignsNotifications.push(_sign);
     }
 
-    function stakeMigration(address _stakerOwner, uint256 _amount) public notReverting {
-        stakeOwnersNotifications.push(_stakerOwner);
+    function stakeChangeBatch(address[] memory _stakeOwners, uint256[] memory _amounts,
+        bool[] memory _signs) public notReverting {
+        for (uint i = 0; i < _stakeOwners.length; ++i) {
+            stakeOwnersNotifications.push(_stakeOwners[i]);
+        }
+
+        for (uint i = 0; i < _amounts.length; ++i) {
+            amountsNotifications.push(_amounts[i]);
+        }
+
+        for (uint i = 0; i < _signs.length; ++i) {
+            amountsSignsNotifications.push(_signs[i]);
+        }
+    }
+
+    function stakeMigration(address _stakeOwner, uint256 _amount) public notReverting {
+        stakeOwnersNotifications.push(_stakeOwner);
         amountsNotifications.push(_amount);
         amountsSignsNotifications.push(true);
     }

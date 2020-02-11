@@ -361,10 +361,12 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         require(token.transferFrom(msg.sender, address(this), _totalAmount),
             "StakingContract::distributeRewards - insufficient allowance");
 
+        bool[] memory signs = new bool[](amountsLength);
         uint256 expectedTotalAmount = 0;
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
             uint256 amount = _amounts[i];
+            signs[i] = true;
 
             require(stakeOwner != address(0), "StakingContract::distributeRewards - stake owner can't be 0");
             require(amount > 0, "StakingContract::distributeRewards - amount must be greater than 0");
@@ -381,12 +383,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         totalStakedTokens = totalStakedTokens.add(_totalAmount);
 
-        // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
-        // that any external call is made after every check and effect have took place. Unfortunately, this results in
-        // duplicating the loop.
-        for (uint i = 0; i < stakeOwnersLength; ++i) {
-            stakeChange(_stakeOwners[i], _amounts[i], true);
-        }
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        stakeChangeBatch(_stakeOwners, _amounts, signs);
     }
 
     /// @dev Returns the stake of the specified stake owner (excluding unstaked tokens).
@@ -437,24 +437,23 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @param _stakeOwners address[] The addresses of the stake owners.
     function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
-        WithdrawResult[] memory results = new WithdrawResult[](stakeOwnersLength);
+        uint256[] memory amounts = new uint256[](stakeOwnersLength);
+        bool[] memory signs = new bool[](stakeOwnersLength);
 
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
             WithdrawResult memory res = withdraw(stakeOwner);
-            results[i] = res;
+            amounts[i] = res.stakedAmountDiff;
+            signs[i] = res.stakedAmountDiffSign;
 
             emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
         }
 
-        // We will postpone stake change notifications to after we've finished updating the stakes, in order make sure
-        // that any external call is made after every check and effect have took place. Unfortunately, this results in
-        // duplicating the loop.
-        for (uint i = 0; i < stakeOwnersLength; ++i) {
-            WithdrawResult memory res = results[i];
-            stakeChange(_stakeOwners[i], res.stakedAmountDiff, res.stakedAmountDiffSign);
-        }
+        // Note: we aren't concerned with reentrancy since:
+        //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
+        //   2. The notifier is set and managed by the migration manager.
+        stakeChangeBatch(_stakeOwners, amounts, signs);
     }
 
     /// @dev Returns whether a specific staking contract was approved as a migration destination.
@@ -490,6 +489,18 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         }
 
         notifier.stakeMigration(_stakeOwner, _amount);
+    }
+
+    /// @dev Notifies of multiple stake change events.
+    /// @param _stakeOwners address[] The addresses of subject stake owners.
+    /// @param _amounts uint256[] The differences in total staked amounts.
+    /// @param _signs bool[] The signs of the added (true) or subtracted (false) amounts.
+    function stakeChangeBatch(address[] memory _stakeOwners, uint256[] memory _amounts, bool[] memory _signs) internal {
+        if (!shouldNotifyStakeChange()) {
+            return;
+        }
+
+        notifier.stakeChangeBatch(_stakeOwners, _amounts, _signs);
     }
 
     /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.

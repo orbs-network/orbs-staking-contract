@@ -12,6 +12,11 @@ contract StakingContractWrapper is StakingContract {
         super.stakeChange(_stakeOwner, _amount, _sign);
     }
 
+    function notifyStakeChangeBatch(address[] calldata _stakeOwners, uint256[] calldata _amounts,
+        bool[] calldata _signs) external {
+        super.stakeChangeBatch(_stakeOwners, _amounts, _signs);
+    }
+
     function notifyStakeMigration(address _stakeOwner, uint256 _amount) external {
         super.stakeMigration(_stakeOwner, _amount);
     }
