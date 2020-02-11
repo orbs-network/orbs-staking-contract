@@ -29,30 +29,31 @@ contract ReentrantStakeChangeNotifierMock is StakeChangeNotifierMock {
             "ReentrantStakeChangeNotifierMock::approve - couldn't approve transfer");
     }
 
-    function stakeChange(address _stakeOwner, uint256 _amount, bool _sign) public {
+    function stakeChange(address _stakeOwner, uint256 _amount, bool _sign, uint256 _updatedStake) public {
         if (attacking) {
             attacking = false;
-            super.stakeChange(_stakeOwner, _amount, _sign);
+            super.stakeChange(_stakeOwner, _amount, _sign, _updatedStake);
 
             return;
         }
 
         attacking = true;
-        super.stakeChange(_stakeOwner, _amount, _sign);
+        super.stakeChange(_stakeOwner, _amount, _sign, _updatedStake);
 
         staking.acceptMigration(stakeOwner, amount);
     }
 
-    function stakeChangeBatch(address[] memory _stakeOwners, uint256[] memory _amounts, bool[] memory _signs) public {
+    function stakeChangeBatch(address[] memory _stakeOwners, uint256[] memory _amounts, bool[] memory _signs,
+        uint256[] memory _updatedStakes) public {
         if (attacking) {
             attacking = false;
-            super.stakeChangeBatch(_stakeOwners, _amounts, _signs);
+            super.stakeChangeBatch(_stakeOwners, _amounts, _signs, _updatedStakes);
 
             return;
         }
 
         attacking = true;
-        super.stakeChangeBatch(_stakeOwners, _amounts, _signs);
+        super.stakeChangeBatch(_stakeOwners, _amounts, _signs, _updatedStakes);
 
         staking.acceptMigration(stakeOwner, amount);
     }

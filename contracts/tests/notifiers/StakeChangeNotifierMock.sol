@@ -7,6 +7,7 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
     address[] public stakeOwnersNotifications;
     uint256[] public amountsNotifications;
     bool[] public amountsSignsNotifications;
+    uint256[] public updatedStakeAmountsNotifications;
 
     bool public shouldRevert;
 
@@ -24,24 +25,27 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
         delete stakeOwnersNotifications;
         delete amountsNotifications;
         delete amountsSignsNotifications;
+        delete updatedStakeAmountsNotifications;
     }
 
     function getNotificationsLength() external view returns (uint256) {
         uint256 stakeOwnersNotificationsLength = stakeOwnersNotifications.length;
         assert(stakeOwnersNotificationsLength == amountsNotifications.length);
         assert(stakeOwnersNotificationsLength == amountsSignsNotifications.length);
+        assert(stakeOwnersNotificationsLength == updatedStakeAmountsNotifications.length);
 
         return stakeOwnersNotificationsLength;
     }
 
-    function stakeChange(address _stakeOwner, uint256 _amount, bool _sign) public notReverting {
+    function stakeChange(address _stakeOwner, uint256 _amount, bool _sign, uint256 _updatedStake) public notReverting {
         stakeOwnersNotifications.push(_stakeOwner);
         amountsNotifications.push(_amount);
         amountsSignsNotifications.push(_sign);
+        updatedStakeAmountsNotifications.push(_updatedStake);
     }
 
     function stakeChangeBatch(address[] memory _stakeOwners, uint256[] memory _amounts,
-        bool[] memory _signs) public notReverting {
+        bool[] memory _signs, uint256[] memory _updatedStakes) public notReverting {
         for (uint i = 0; i < _stakeOwners.length; ++i) {
             stakeOwnersNotifications.push(_stakeOwners[i]);
         }
@@ -53,11 +57,16 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
         for (uint i = 0; i < _signs.length; ++i) {
             amountsSignsNotifications.push(_signs[i]);
         }
+
+        for (uint i = 0; i < _updatedStakes.length; ++i) {
+            updatedStakeAmountsNotifications.push(_updatedStakes[i]);
+        }
     }
 
     function stakeMigration(address _stakeOwner, uint256 _amount) public notReverting {
         stakeOwnersNotifications.push(_stakeOwner);
         amountsNotifications.push(_amount);
         amountsSignsNotifications.push(true);
+        updatedStakeAmountsNotifications.push(0);
     }
 }

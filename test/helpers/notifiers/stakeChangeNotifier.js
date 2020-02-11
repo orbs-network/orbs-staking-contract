@@ -25,6 +25,7 @@ class StakeChangeNotifier extends BaseContract {
   async getNotification() {
     const stakeOwners = [];
     const amounts = [];
+    const updatedStakes = [];
 
     const length = (await this.contract.getNotificationsLength.call()).toNumber();
     for (let i = 0; i < length; ++i) {
@@ -32,11 +33,13 @@ class StakeChangeNotifier extends BaseContract {
       const sign = await this.contract.amountsSignsNotifications.call(i);
       const amount = await this.contract.amountsNotifications.call(i);
       amounts.push(sign ? amount : amount.neg());
+      updatedStakes.push(await this.contract.updatedStakeAmountsNotifications.call(i));
     }
 
     return {
       stakeOwners,
       amounts,
+      updatedStakes,
     };
   }
 }
