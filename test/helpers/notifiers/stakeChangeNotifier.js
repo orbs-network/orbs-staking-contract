@@ -22,15 +22,22 @@ class StakeChangeNotifier extends BaseContract {
     return this.contract.reset();
   }
 
-  async getCalledWith() {
-    const calledWith = [];
+  async getNotification() {
+    const stakeOwners = [];
+    const amounts = [];
 
-    const length = (await this.contract.getCalledWithLength.call()).toNumber();
+    const length = (await this.contract.getNotificationsLength.call()).toNumber();
     for (let i = 0; i < length; ++i) {
-      calledWith.push(await this.contract.calledWith.call(i));
+      stakeOwners.push(await this.contract.stakeOwnersNotifications.call(i));
+      const sign = await this.contract.amountsSignsNotifications.call(i);
+      const amount = await this.contract.amountsNotifications.call(i);
+      amounts.push(sign ? amount : amount.neg());
     }
 
-    return calledWith;
+    return {
+      stakeOwners,
+      amounts,
+    };
   }
 }
 

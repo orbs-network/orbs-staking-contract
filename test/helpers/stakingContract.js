@@ -1,3 +1,5 @@
+import { Assertion, util } from 'chai';
+import { BN } from '@openzeppelin/test-helpers';
 import BaseContract from './baseContract';
 
 const StakingContractWrapper = artifacts.require('../../contracts/tests/StakingContractWrapper.sol');
@@ -96,8 +98,8 @@ class StakingContract extends BaseContract {
     return this.contract.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
   }
 
-  async notifyStakeChange(stakeOwner) {
-    return this.contract.notify(StakingContract.getAddress(stakeOwner));
+  async notifyStakeChange(stakeOwner, amount) {
+    return this.contract.notify(StakingContract.getAddress(stakeOwner), amount, !amount.isNeg());
   }
 
   async addMigrationDestination(newStakingContract, options = {}) {
@@ -178,3 +180,30 @@ class StakingContract extends BaseContract {
 }
 
 export default StakingContract;
+
+Assertion.addMethod('eqlBN', function eqlBN(bnArray) {
+  if (util.flag(this, 'negate')) {
+    throw new Error('eqlBN negation is currently unsupported');
+  }
+
+  const obj = this._obj; // eslint-disable-line no-underscore-dangle
+
+  new Assertion(obj).to.be.instanceof(Array);
+
+  this.assert(
+    obj.length === bnArray.length,
+    `expected #{this} length ${obj.length} to be equal to [${bnArray.length}]`,
+    `expected #{this} length ${obj.length} not to be equal to [${bnArray.length}]`,
+  );
+
+  for (let i = 0; i < obj.length; ++i) {
+    const value = new BN(obj[i]);
+    const expectedValue = new BN(bnArray[i]);
+
+    this.assert(
+      value.eq(expectedValue),
+      `expected element ${i}'s value ${value.toNumber()} to be equal to ${expectedValue.toNumber()}`,
+      `expected element ${i}'s value ${value.toNumber()} not to be equal to ${expectedValue.toNumber()}`,
+    );
+  }
+});

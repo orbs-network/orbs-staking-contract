@@ -4,7 +4,10 @@ import "../../IStakeChangeNotifier.sol";
 
 /// @title A test mockup for IStakeChangeNotifier.
 contract StakeChangeNotifierMock is IStakeChangeNotifier {
-    address[] public calledWith;
+    address[] public stakeOwnersNotifications;
+    uint256[] public amountsNotifications;
+    bool[] public amountsSignsNotifications;
+
     bool public shouldRevert;
 
     modifier notReverting() {
@@ -18,14 +21,22 @@ contract StakeChangeNotifierMock is IStakeChangeNotifier {
     }
 
     function reset() external {
-        delete calledWith;
+        delete stakeOwnersNotifications;
+        delete amountsNotifications;
+        delete amountsSignsNotifications;
     }
 
-    function getCalledWithLength() external view returns (uint256) {
-        return calledWith.length;
+    function getNotificationsLength() external view returns (uint256) {
+        uint256 stakeOwnersNotificationsLength = stakeOwnersNotifications.length;
+        assert(stakeOwnersNotificationsLength == amountsNotifications.length);
+        assert(stakeOwnersNotificationsLength == amountsSignsNotifications.length);
+
+        return stakeOwnersNotificationsLength;
     }
 
-    function stakeChange(address _stakerOwner) public notReverting {
-        calledWith.push(_stakerOwner);
+    function stakeChange(address _stakerOwner, uint256 _amount, bool _sign) public notReverting {
+        stakeOwnersNotifications.push(_stakerOwner);
+        amountsNotifications.push(_amount);
+        amountsSignsNotifications.push(_sign);
     }
 }

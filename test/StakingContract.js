@@ -10,7 +10,6 @@ const { duration } = time;
 const EVENTS = StakingContract.getEvents();
 const VERSION = new BN(1);
 const MAX_APPROVED_STAKING_CONTRACTS = 10;
-const STAKE_CHANGE_NOTIFICATION_GAS_LIMIT = StakingContract.getStakeChangeNotificationGasLimit();
 const TIME_ERROR = duration.seconds(10);
 
 const TestERC20 = artifacts.require('../../contracts/tests/TestERC20.sol');
@@ -209,14 +208,6 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('stake change notifications', async () => {
-    const testSetStakeChangeNotifier = async (staking, notifier, from, to) => {
-      expect(await notifier.getCalledWith()).to.have.members(from);
-
-      await staking.notifyStakeChange(to);
-
-      expect(await notifier.getCalledWith()).to.have.members([to]);
-    };
-
     let staking;
     beforeEach(async () => {
       const cooldown = duration.minutes(5);
@@ -226,7 +217,8 @@ contract('StakingContract', (accounts) => {
     context('without a notifier', async () => {
       it('should succeed', async () => {
         const stakeOwner = accounts[6];
-        const tx = await staking.notifyStakeChange(stakeOwner);
+        const amount = new BN(123);
+        const tx = await staking.notifyStakeChange(stakeOwner, amount);
         expect(tx.logs).to.be.empty();
       });
     });
@@ -239,7 +231,8 @@ contract('StakingContract', (accounts) => {
 
       it('should not emit a failing event', async () => {
         const stakeOwner = accounts[5];
-        const tx = await staking.notifyStakeChange(stakeOwner);
+        const amount = new BN(123);
+        const tx = await staking.notifyStakeChange(stakeOwner, amount);
         expect(tx.logs).to.be.empty();
       });
     });
@@ -252,8 +245,17 @@ contract('StakingContract', (accounts) => {
       });
 
       it('should succeed', async () => {
+        let { stakeOwners, amounts } = await notifier.getNotification();
+        expect(stakeOwners).to.be.empty();
+        expect(amounts).to.be.empty();
+
         const stakeOwner = accounts[3];
-        await testSetStakeChangeNotifier(staking, notifier, [], stakeOwner);
+        const amount = new BN(1000);
+        await staking.notifyStakeChange(stakeOwner, amount);
+
+        ({ stakeOwners, amounts } = await notifier.getNotification());
+        expect(stakeOwners).to.eql([stakeOwner]);
+        expect(amounts).to.eqlBN([amount]);
       });
 
       context('with a reverting notifier', async () => {
@@ -262,13 +264,18 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should handle revert and emit a failing event', async () => {
-          expect(await notifier.getCalledWith()).to.be.empty();
+          let { stakeOwners, amounts } = await notifier.getNotification();
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
 
           const stakeOwner = accounts[3];
-          const tx = await staking.notifyStakeChange(stakeOwner);
+          const amount = new BN(123);
+          const tx = await staking.notifyStakeChange(stakeOwner, amount);
           expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.getAddress() });
 
-          expect(await notifier.getCalledWith()).to.be.empty();
+          ({ stakeOwners, amounts } = await notifier.getNotification());
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
         });
       });
     });
@@ -324,7 +331,7 @@ contract('StakingContract', (accounts) => {
           await testAddMigrationDestination(staking, destination);
         }
 
-        expect(await staking.getApprovedStakingContracts()).to.have.members(migrationDestinations);
+        expect(await staking.getApprovedStakingContracts()).to.eql(migrationDestinations);
       });
 
       it('should not allow adding a 0 address', async () => {
@@ -379,7 +386,7 @@ contract('StakingContract', (accounts) => {
       it('should revert when trying to remove a non-existing contract', async () => {
         const destination = migrationDestinations[0];
         await staking.addMigrationDestination(destination, { from: sender });
-        expect(await staking.getApprovedStakingContracts()).to.have.members([destination]);
+        expect(await staking.getApprovedStakingContracts()).to.eql([destination]);
 
         await expectRevert(staking.removeMigrationDestination(accounts[20], { from: sender }),
           "StakingContract::removeMigrationDestination - staking contract doesn't exist");
@@ -420,7 +427,9 @@ contract('StakingContract', (accounts) => {
         expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner, amount: stake, totalStakedAmount });
       }
 
-      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+      const { stakeOwners, amounts } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([stake]);
 
       const currentState = await getState();
 
@@ -526,7 +535,10 @@ contract('StakingContract', (accounts) => {
               amount: stake,
               totalStakedAmount: stake,
             });
-            expect(await reentrantNotifier.getCalledWith()).to.have.members([stakeOwner2, stakeOwner2]);
+
+            const { stakeOwners, amounts } = await reentrantNotifier.getNotification();
+            expect(stakeOwners).to.eql([stakeOwner2, stakeOwner2]);
+            expect(amounts).to.eqlBN([stake, stake]);
 
             // The operation will result in a double stake attribute to stakeOwner2:
             const effectiveStake = stake.mul(new BN(2));
@@ -548,7 +560,10 @@ contract('StakingContract', (accounts) => {
               });
               expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed,
                 { notifier: reentrantNotifier.getAddress() });
-              expect(await reentrantNotifier.getCalledWith()).to.be.empty();
+
+              const { stakeOwners, amounts } = await reentrantNotifier.getNotification();
+              expect(stakeOwners).to.be.empty();
+              expect(amounts).to.be.empty();
 
               // The operation will result in a single stake attribute to stakeOwner2:
               expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
@@ -579,7 +594,10 @@ contract('StakingContract', (accounts) => {
           const callerBalance = await token.balanceOf(caller);
 
           const tx = await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
-          expect(await notifier.getCalledWith()).to.have.members(stakers);
+
+          const { stakeOwners, amounts } = await notifier.getNotification();
+          expect(stakeOwners).to.eql(stakers);
+          expect(amounts).to.eqlBN(stakes);
 
           for (let i = 0; i < stakers.length; ++i) {
             const stakeOwner = stakers[i];
@@ -668,12 +686,20 @@ contract('StakingContract', (accounts) => {
 
             // The notifier should have been called in this order:
             //     S[0], luckyStaker, S[1], luckyStaker, ... S[19], luckyStaker
-            const zipped = stakers.reduce((res, s) => {
+            const zippedStakers = stakers.reduce((res, s) => {
               res.push(s);
               res.push(luckyStaker);
               return res;
             }, []);
-            expect(await reentrantNotifier.getCalledWith()).to.have.members(zipped);
+            const zippedStakes = stakes.reduce((res, s) => {
+              res.push(s);
+              res.push(luckyStake);
+              return res;
+            }, []);
+
+            const { stakeOwners, amounts } = await reentrantNotifier.getNotification();
+            expect(stakeOwners).to.eql(zippedStakers);
+            expect(amounts).to.eqlBN(zippedStakes);
 
             // The operation will result in an additional stake for luckyStaker (once per bathc member):
             expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(additionalStake));
@@ -696,14 +722,25 @@ contract('StakingContract', (accounts) => {
 
               // The notifier should have been called in this order:
               //     S[0], luckyStaker, S[1], luckyStaker, ... S[18], luckyStaker
-              const zipped = stakers.reduce((res, s) => {
+              const zippedStakers = stakers.reduce((res, s) => {
                 res.push(s);
                 res.push(luckyStaker);
                 return res;
               }, []);
-              zipped.pop();
-              zipped.pop();
-              expect(await reentrantNotifier.getCalledWith()).to.have.members(zipped);
+              zippedStakers.pop();
+              zippedStakers.pop();
+
+              const zippedStakes = stakes.reduce((res, s) => {
+                res.push(s);
+                res.push(luckyStake);
+                return res;
+              }, []);
+              zippedStakes.pop();
+              zippedStakes.pop();
+
+              const { stakeOwners, amounts } = await reentrantNotifier.getNotification();
+              expect(stakeOwners).to.eql(zippedStakers);
+              expect(amounts).to.eqlBN(zippedStakes);
 
               // The operation will result in an additional stake for luckyStaker, but not including the last addition,
               // since the rouge notifier won't have enough tokens to accomplish it.
@@ -850,7 +887,10 @@ contract('StakingContract', (accounts) => {
 
       const tx = await staking.unstake(unstakeAmount, { from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: unstakeAmount, totalStakedAmount });
-      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      const { stakeOwners, amounts } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([unstakeAmount.neg()]);
 
       const currentState = await getState();
 
@@ -990,19 +1030,20 @@ contract('StakingContract', (accounts) => {
       let withdrawnAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
       let totalStakedAmount = prevState.stakeOwnerStake;
       let newtotalStakedTokens = prevState.totalStakedTokens;
+      let stakedAmountDiff = new BN(0);
       if (await staking.releasingAllStakes()) {
         withdrawnAmount = withdrawnAmount.add(prevState.stakeOwnerStake);
         totalStakedAmount = totalStakedAmount.sub(prevState.stakeOwnerStake);
         newtotalStakedTokens = newtotalStakedTokens.sub(prevState.stakeOwnerStake);
-      } else {
-        withdrawnAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
-        totalStakedAmount = prevState.stakeOwnerStake;
-        newtotalStakedTokens = prevState.totalStakedTokens;
+        stakedAmountDiff = withdrawnAmount.neg();
       }
 
       const tx = await staking.withdraw({ from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: withdrawnAmount, totalStakedAmount });
-      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      const { stakeOwners, amounts } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([stakedAmountDiff]);
 
       const currentState = await getState();
 
@@ -1144,7 +1185,10 @@ contract('StakingContract', (accounts) => {
 
       const tx = await staking.restake({ from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.restaked, { stakeOwner, amount: unstakedAmount, totalStakedAmount });
-      expect(await notifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      const { stakeOwners, amounts } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([unstakedAmount]);
 
       const currentState = await getState();
 
@@ -1270,8 +1314,14 @@ contract('StakingContract', (accounts) => {
 
       const tx = await staking.migrateStakedTokens(migrationDestination, amount, { from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount, totalStakedAmount });
-      expect(await notifier.getCalledWith()).to.be.empty();
-      expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
+
+      let { stakeOwners, amounts } = await notifier.getNotification();
+      expect(stakeOwners).to.be.empty();
+      expect(amounts).to.be.empty();
+
+      ({ stakeOwners, amounts } = await migrationNotifier.getNotification());
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([amount]);
 
       const currentState = await getState();
 
@@ -1359,9 +1409,17 @@ contract('StakingContract', (accounts) => {
           const migrationDestination = migrationDestinations[i];
           const migrationNotifier = migrationNotifiers[i];
           const tx = await staking.migrateStakedTokens(migrationDestination, stake, { from: stakeOwner });
-          expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount: stake, totalStakedAmount: new BN(0) });
-          expect(await notifier.getCalledWith()).to.be.empty();
-          expect(await migrationNotifier.getCalledWith()).to.have.members([stakeOwner]);
+          expectEvent.inLogs(tx.logs, EVENTS.migratedStake, {
+            stakeOwner, amount: stake, totalStakedAmount: new BN(0),
+          });
+
+          let { stakeOwners, amounts } = await notifier.getNotification();
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
+
+          ({ stakeOwners, amounts } = await migrationNotifier.getNotification());
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([stake]);
 
           await token.assign(stakeOwner, stake);
           await token.approve(staking.getAddress(), stake, { from: stakeOwner });
@@ -1638,7 +1696,10 @@ contract('StakingContract', (accounts) => {
               await notifier.reset();
 
               const tx = await staking.withdrawReleasedStakes(stakers, { from: caller });
-              expect(await notifier.getCalledWith()).to.have.members(stakers);
+
+              const { stakeOwners, amounts } = await notifier.getNotification();
+              expect(stakeOwners).to.eql(stakers);
+              expect(amounts).to.eqlBN(prevStakeOwnersStates.map((s) => s.stakeOwnerStake.neg()));
 
               let totalWithdrawn = new BN(0);
               let totalReleasedStake = new BN(0);

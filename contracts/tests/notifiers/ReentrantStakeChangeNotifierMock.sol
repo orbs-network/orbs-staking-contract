@@ -29,16 +29,16 @@ contract ReentrantStakeChangeNotifierMock is StakeChangeNotifierMock {
             "ReentrantStakeChangeNotifierMock::approve - couldn't approve transfer");
     }
 
-    function stakeChange(address _stakerOwner) public {
+    function stakeChange(address _stakerOwner, uint256 _amount, bool _sign) public {
         if (attacking) {
             attacking = false;
-            super.stakeChange(_stakerOwner);
+            super.stakeChange(_stakerOwner, _amount, _sign);
 
             return;
         }
 
         attacking = true;
-        super.stakeChange(_stakerOwner);
+        super.stakeChange(_stakerOwner, _amount, _sign);
 
         staking.acceptMigration(stakeOwner, amount);
     }
