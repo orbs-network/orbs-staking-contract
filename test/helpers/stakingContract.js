@@ -98,8 +98,8 @@ class StakingContract extends BaseContract {
     return this.contract.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
   }
 
-  async notifyStakeChange(stakeOwner, amount) {
-    return this.contract.notify(StakingContract.getAddress(stakeOwner), amount, !amount.isNeg());
+  async stakeChange(stakeOwner, amount) {
+    return this.contract.notifyStakeChange(StakingContract.getAddress(stakeOwner), amount, !amount.isNeg());
   }
 
   async addMigrationDestination(newStakingContract, options = {}) {
@@ -168,7 +168,6 @@ class StakingContract extends BaseContract {
       migrationDestinationRemoved: 'MigrationDestinationRemoved',
       emergencyManagerUpdated: 'EmergencyManagerUpdated',
       stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
-      stakeChangeNotificationFailed: 'StakeChangeNotificationFailed',
       stoppedAcceptingNewStake: 'StoppedAcceptingNewStake',
       releasedAllStakes: 'ReleasedAllStakes',
     };

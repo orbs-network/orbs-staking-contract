@@ -28,9 +28,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     // The maximum number of approved staking contracts as migration destinations.
     uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
 
-    // The gas limit for stake change notifications.
-    uint public constant STAKE_CHANGE_NOTIFICATION_GAS_LIMIT = 2000000;
-
     // The mapping between stake owners and their data.
     mapping(address => Stake) internal stakes;
 
@@ -75,7 +72,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     event MigrationDestinationRemoved(IMigratableStakingContract indexed stakingContract);
     event EmergencyManagerUpdated(address indexed emergencyManager);
     event StakeChangeNotifierUpdated(IStakeChangeNotifier indexed notifier);
-    event StakeChangeNotificationFailed(IStakeChangeNotifier indexed notifier);
     event StoppedAcceptingNewStake();
     event ReleasedAllStakes();
 
@@ -215,8 +211,8 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
-        //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner, _amount, true);
+        //   2. The notifier is set and managed by the migration manager.=
+        stakeChange(stakeOwner, _amount, true);
     }
 
     /// @dev Unstakes ORBS tokens from msg.sender. If successful, this will start the cooldown period, after which
@@ -251,7 +247,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner, _amount, false);
+        stakeChange(stakeOwner, _amount, false);
     }
 
     /// @dev Requests to withdraw all of staked ORBS tokens back to msg.sender. Stake owners can withdraw their ORBS
@@ -267,7 +263,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner, res.stakedAmountDiff, res.stakedAmountDiffSign);
+        stakeChange(stakeOwner, res.stakedAmountDiff, res.stakedAmountDiffSign);
     }
 
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
@@ -289,7 +285,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(stakeOwner, cooldownAmount, true);
+        stakeChange(stakeOwner, cooldownAmount, true);
     }
 
     /// @dev Stakes ORBS tokens on behalf of msg.sender. This method assumes that the user has already approved at least
@@ -304,7 +300,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        notifyStakeChange(_stakeOwner, _amount, true);
+        stakeChange(_stakeOwner, _amount, true);
     }
 
     /// @dev Migrates the stake of msg.sender from this staking contract to a new approved staking contract.
@@ -384,7 +380,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // that any external call is made after every check and effect have took place. Unfortunately, this results in
         // duplicating the loop.
         for (uint i = 0; i < stakeOwnersLength; ++i) {
-            notifyStakeChange(_stakeOwners[i], _amounts[i], true);
+            stakeChange(_stakeOwners[i], _amounts[i], true);
         }
     }
 
@@ -452,7 +448,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         // duplicating the loop.
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             WithdrawResult memory res = results[i];
-            notifyStakeChange(_stakeOwners[i], res.stakedAmountDiff, res.stakedAmountDiffSign);
+            stakeChange(_stakeOwners[i], res.stakedAmountDiff, res.stakedAmountDiffSign);
         }
     }
 
@@ -463,25 +459,16 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (, exists) = findApprovedStakingContractIndex(_stakingContract);
     }
 
-    /// @dev Notifies of stake change event.
+    /// @dev Notifies of stake change events.
     /// @param _stakeOwner address The address of the subject stake owner.
     /// @param _amount int256 The difference in the total staked amount.
     /// @param _sign bool The sign of the added (true) or subtracted (false) amount.
-    function notifyStakeChange(address _stakeOwner, uint256 _amount, bool _sign) internal {
+    function stakeChange(address _stakeOwner, uint256 _amount, bool _sign) internal {
         if (address(notifier) == address(0)) {
             return;
         }
 
-        // In order to handle the case when the stakeChange method reverts, we will invoke it using EVM call and check
-        // its returned value.
-
-        // solhint-disable avoid-low-level-calls
-        (bool success,) = address(notifier).call.gas(STAKE_CHANGE_NOTIFICATION_GAS_LIMIT)(abi.encodeWithSelector(
-            notifier.stakeChange.selector, _stakeOwner, _amount, _sign));
-        if (!success) {
-            emit StakeChangeNotificationFailed(notifier);
-        }
-        // solhint-enable avoid-low-level-calls
+        notifier.stakeChange(_stakeOwner, _amount, _sign);
     }
 
     /// @dev Stakes amount of ORBS tokens on behalf of the specified stake owner.

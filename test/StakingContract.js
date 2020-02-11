@@ -218,7 +218,7 @@ contract('StakingContract', (accounts) => {
       it('should succeed', async () => {
         const stakeOwner = accounts[6];
         const amount = new BN(123);
-        const tx = await staking.notifyStakeChange(stakeOwner, amount);
+        const tx = await staking.stakeChange(stakeOwner, amount);
         expect(tx.logs).to.be.empty();
       });
     });
@@ -229,11 +229,10 @@ contract('StakingContract', (accounts) => {
         await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
       });
 
-      it('should not emit a failing event', async () => {
+      it('should revert', async () => {
         const stakeOwner = accounts[5];
         const amount = new BN(123);
-        const tx = await staking.notifyStakeChange(stakeOwner, amount);
-        expect(tx.logs).to.be.empty();
+        await expectRevert.unspecified(staking.stakeChange(stakeOwner, amount));
       });
     });
 
@@ -251,7 +250,7 @@ contract('StakingContract', (accounts) => {
 
         const stakeOwner = accounts[3];
         const amount = new BN(1000);
-        await staking.notifyStakeChange(stakeOwner, amount);
+        await staking.stakeChange(stakeOwner, amount);
 
         ({ stakeOwners, amounts } = await notifier.getNotification());
         expect(stakeOwners).to.eql([stakeOwner]);
@@ -263,19 +262,14 @@ contract('StakingContract', (accounts) => {
           await notifier.setRevert(true);
         });
 
-        it('should handle revert and emit a failing event', async () => {
-          let { stakeOwners, amounts } = await notifier.getNotification();
+        it('should revert', async () => {
+          const { stakeOwners, amounts } = await notifier.getNotification();
           expect(stakeOwners).to.be.empty();
           expect(amounts).to.be.empty();
 
           const stakeOwner = accounts[3];
           const amount = new BN(123);
-          const tx = await staking.notifyStakeChange(stakeOwner, amount);
-          expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed, { notifier: notifier.getAddress() });
-
-          ({ stakeOwners, amounts } = await notifier.getNotification());
-          expect(stakeOwners).to.be.empty();
-          expect(amounts).to.be.empty();
+          await expectRevert(staking.stakeChange(stakeOwner, amount), 'StakeChangeNotifierMock: revert');
         });
       });
     });
@@ -547,27 +541,16 @@ contract('StakingContract', (accounts) => {
           });
 
           context('with an insufficient token balance', async () => {
-            it('should stake only once', async () => {
+            it('should revert', async () => {
               await token.assign(reentrantNotifier.getAddress(), stake.sub(new BN(1)));
               await reentrantNotifier.approve(staking, stake, { from: stakeOwner });
               await reentrantNotifier.setStakeData(stakeOwner2, stake);
 
-              const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
-              expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, {
-                stakeOwner: stakeOwner2,
-                amount: stake,
-                totalStakedAmount: stake,
-              });
-              expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotificationFailed,
-                { notifier: reentrantNotifier.getAddress() });
+              await expectRevert(staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner }),
+                'SafeMath: subtraction overflow');
 
-              const { stakeOwners, amounts } = await reentrantNotifier.getNotification();
-              expect(stakeOwners).to.be.empty();
-              expect(amounts).to.be.empty();
-
-              // The operation will result in a single stake attribute to stakeOwner2:
-              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(stake);
-              expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(stake);
+              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(new BN(0));
+              expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
             });
           });
         });
@@ -707,10 +690,9 @@ contract('StakingContract', (accounts) => {
           });
 
           context('with an insufficient token balance', async () => {
-            it('should batch stake only once', async () => {
+            it('should revert', async () => {
               const luckyStakerIndex = 5;
               const luckyStaker = stakers[luckyStakerIndex];
-              const originalStake = stakes[luckyStakerIndex];
               const luckyStake = new BN(100);
               const additionalStake = luckyStake.mul(new BN(stakers.length));
 
@@ -718,36 +700,7 @@ contract('StakingContract', (accounts) => {
               await reentrantNotifier.approve(staking, additionalStake, { from: caller });
               await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
 
-              await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
-
-              // The notifier should have been called in this order:
-              //     S[0], luckyStaker, S[1], luckyStaker, ... S[18], luckyStaker
-              const zippedStakers = stakers.reduce((res, s) => {
-                res.push(s);
-                res.push(luckyStaker);
-                return res;
-              }, []);
-              zippedStakers.pop();
-              zippedStakers.pop();
-
-              const zippedStakes = stakes.reduce((res, s) => {
-                res.push(s);
-                res.push(luckyStake);
-                return res;
-              }, []);
-              zippedStakes.pop();
-              zippedStakes.pop();
-
-              const { stakeOwners, amounts } = await reentrantNotifier.getNotification();
-              expect(stakeOwners).to.eql(zippedStakers);
-              expect(amounts).to.eqlBN(zippedStakes);
-
-              // The operation will result in an additional stake for luckyStaker, but not including the last addition,
-              // since the rouge notifier won't have enough tokens to accomplish it.
-              const effectiveStake = additionalStake.sub(luckyStake);
-              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(effectiveStake));
-              expect(await staking.getStakeBalanceOf(luckyStaker)).to.be.bignumber
-                .eq(originalStake.add(effectiveStake));
+              await expectRevert.unspecified(staking.distributeRewards(totalStake, stakers, stakes, { from: caller }));
             });
           });
         });
