@@ -13,7 +13,7 @@
         ],
         "compiler-version": [
             "error",
-            "0.4.26"
+            "0.5.16"
         ]
     }
 }

@@ -7,6 +7,8 @@ require('chai')
   .use(require('chai-bn')(require('bn.js')))
   .use(require('dirty-chai'))
   .expect();
+
+const ganache = require('ganache-core');
 /* eslint-enable import/no-extraneous-dependencies */
 
 const process = require('process');
@@ -30,21 +32,17 @@ if (WITH_GAS_PROFILER) {
 module.exports = {
   networks: {
     development: {
-      host: 'localhost',
-      port: 7545,
       network_id: '*',
-    },
-    coverage: {
-      host: 'localhost',
-      network_id: '*',
-      port: 7555,
-      gas: 0xfffffffffff,
-      gasPrice: 0x01,
+      provider: ganache.provider({
+        total_accounts: 30,
+        defaultEtherBalance: 1000,
+      }),
     },
   },
+  plugins: ['solidity-coverage'],
   compilers: {
     solc: {
-      version: '0.4.26',
+      version: '0.5.16',
       settings: {
         optimizer: {
           enabled: true,

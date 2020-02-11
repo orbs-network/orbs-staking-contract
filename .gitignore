@@ -5,8 +5,9 @@
 /node_modules
 /dist
 /build
+/.coverage_artifacts
+/.coverage_contracts
 /coverage
-/coverageEnv
 /coverage.json
 /allFiredEvents
 /scTopics

@@ -1,6 +1,8 @@
 import chai from 'chai';
-import { BN, expectRevert, expectEvent, constants, time } from 'openzeppelin-test-helpers';
+import { BN, expectRevert, expectEvent, constants, time } from '@openzeppelin/test-helpers';
 import StakingContract from './helpers/stakingContract';
+import StakeChangeNotifier from './helpers/notifiers/stakeChangeNotifier';
+import ReentrantStakeChangeNotifier from './helpers/notifiers/reentrantStakeChangeNotifier';
 
 const { expect } = chai;
 const { duration } = time;
@@ -53,6 +55,7 @@ contract('StakingContract', (accounts) => {
       const staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
 
       expect(await staking.getCooldownPeriodInSec()).to.be.bignumber.eq(cooldown);
+      expect(await staking.getStakeChangeNotifier()).to.eql(constants.ZERO_ADDRESS);
       expect(await staking.getMigrationManager()).to.eql(migrationManager);
       expect(await staking.getEmergencyManager()).to.eql(emergencyManager);
       expect(await staking.getToken()).to.eql(token.address);
@@ -151,6 +154,254 @@ contract('StakingContract', (accounts) => {
     });
   });
 
+  describe('setting of the stake change notifier', async () => {
+    const testSetStakeChangeNotifier = async (staking, from, to) => {
+      expect(await staking.getStakeChangeNotifier()).to.eql(from);
+
+      const tx = await staking.setStakeChangeNotifier(to, { from: migrationManager });
+      expectEvent.inLogs(tx.logs, EVENTS.stakeChangeNotifierUpdated, { notifier: to });
+
+      expect(await staking.getStakeChangeNotifier()).to.eql(to);
+    };
+
+    let staking;
+    beforeEach(async () => {
+      const cooldown = duration.minutes(5);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+    });
+
+    context('as a regular account', async () => {
+      const sender = accounts[1];
+
+      it('should not allow to set', async () => {
+        const newNotifier = accounts[3];
+        await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
+          'StakingContract: caller is not the migration manager');
+      });
+    });
+
+    context('as a migration manager', async () => {
+      const sender = migrationManager;
+
+      it('should set to a new address', async () => {
+        const newNotifier = accounts[3];
+        await testSetStakeChangeNotifier(staking, constants.ZERO_ADDRESS, newNotifier);
+      });
+
+      context('when already set', async () => {
+        const newNotifier = accounts[2];
+
+        beforeEach(async () => {
+          await staking.setStakeChangeNotifier(newNotifier, { from: sender });
+        });
+
+        it('should allow resetting to 0', async () => {
+          await testSetStakeChangeNotifier(staking, newNotifier, constants.ZERO_ADDRESS);
+        });
+
+        it('should not allow changing to the same address', async () => {
+          await expectRevert(staking.setStakeChangeNotifier(newNotifier, { from: sender }),
+            'StakingContract::setStakeChangeNotifier - address must be different than the current address');
+        });
+      });
+    });
+  });
+
+  describe('notifications', async () => {
+    let staking;
+    beforeEach(async () => {
+      const cooldown = duration.minutes(5);
+      staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+    });
+
+    describe('stake change', async () => {
+      context('without a notifier', async () => {
+        it('should succeed', async () => {
+          const stakeOwner = accounts[6];
+          const amount = new BN(123);
+          const updatedStake = new BN(1000);
+          await staking.stakeChange(stakeOwner, amount, updatedStake);
+        });
+      });
+
+      context('with an EOA notifier', async () => {
+        const notifier = accounts[1];
+        beforeEach(async () => {
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should revert', async () => {
+          const stakeOwner = accounts[5];
+          const amount = new BN(123);
+          const updatedStake = new BN(1000);
+          await expectRevert.unspecified(staking.stakeChange(stakeOwner, amount, updatedStake));
+        });
+      });
+
+      context('with a contract notifier', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should succeed', async () => {
+          let { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
+          expect(updatedStakes).to.be.empty();
+
+          const stakeOwner = accounts[3];
+          const amount = new BN(1000);
+          const updatedStake = new BN(5000);
+          await staking.stakeChange(stakeOwner, amount, updatedStake);
+
+          ({ stakeOwners, amounts, updatedStakes } = await notifier.getNotification());
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([amount]);
+          expect(updatedStakes).to.eqlBN([updatedStake]);
+        });
+
+        context('with a reverting notifier', async () => {
+          beforeEach(async () => {
+            await notifier.setRevert(true);
+          });
+
+          it('should revert', async () => {
+            const stakeOwner = accounts[3];
+            const amount = new BN(123);
+            const updatedStake = new BN(1000);
+            await expectRevert(staking.stakeChange(stakeOwner, amount, updatedStake),
+              'StakeChangeNotifierMock: revert');
+          });
+        });
+      });
+    });
+
+    describe('stake change batch', async () => {
+      context('without a notifier', async () => {
+        it('should succeed', async () => {
+          const stakeOwners = [accounts[6], accounts[7]];
+          const amounts = [new BN(123), new BN(100)];
+          const updatedStakes = [new BN(1000), new BN(200)];
+          await staking.stakeChangeBatch(stakeOwners, amounts, updatedStakes);
+        });
+      });
+
+      context('with an EOA notifier', async () => {
+        const notifier = accounts[1];
+        beforeEach(async () => {
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should revert', async () => {
+          const stakeOwners = [accounts[6], accounts[7]];
+          const amounts = [new BN(123), new BN(100)];
+          const updatedStakes = [new BN(1000), new BN(200)];
+          await expectRevert.unspecified(staking.stakeChangeBatch(stakeOwners, amounts, updatedStakes));
+        });
+      });
+
+      context('with a contract notifier', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should succeed', async () => {
+          let { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
+          expect(updatedStakes).to.be.empty();
+
+          const notifyStakeOwners = [accounts[3], accounts[4], accounts[5]];
+          const notifyAmounts = [new BN(1000), new BN(11), new BN(500)];
+          const notifyUpdatedStakeAmounts = [new BN(10000), new BN(101), new BN(5000)];
+          await staking.stakeChangeBatch(notifyStakeOwners, notifyAmounts, notifyUpdatedStakeAmounts);
+
+          ({ stakeOwners, amounts, updatedStakes } = await notifier.getNotification());
+          expect(stakeOwners).to.eql(notifyStakeOwners);
+          expect(amounts).to.eqlBN(notifyAmounts);
+          expect(updatedStakes).to.eqlBN(notifyUpdatedStakeAmounts);
+        });
+
+        context('with a reverting notifier', async () => {
+          beforeEach(async () => {
+            await notifier.setRevert(true);
+          });
+
+          it('should revert', async () => {
+            const stakeOwners = [accounts[6], accounts[7]];
+            const amounts = [new BN(123), new BN(100)];
+            const updatedStakes = [new BN(1000), new BN(200)];
+            await expectRevert(staking.stakeChangeBatch(stakeOwners, amounts, updatedStakes),
+              'StakeChangeNotifierMock: revert');
+          });
+        });
+      });
+    });
+
+    describe('stake migration ', async () => {
+      context('without a notifier', async () => {
+        it('should succeed', async () => {
+          const stakeOwner = accounts[6];
+          const amount = new BN(123);
+          await staking.stakeMigration(stakeOwner, amount);
+        });
+      });
+
+      context('with an EOA notifier', async () => {
+        const notifier = accounts[1];
+        beforeEach(async () => {
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should revert', async () => {
+          const stakeOwner = accounts[5];
+          const amount = new BN(123);
+          await expectRevert.unspecified(staking.stakeMigration(stakeOwner, amount));
+        });
+      });
+
+      context('with a contract notifier', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
+        it('should succeed', async () => {
+          let { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+          expect(stakeOwners).to.be.empty();
+          expect(amounts).to.be.empty();
+          expect(updatedStakes).to.be.empty();
+
+          const stakeOwner = accounts[3];
+          const amount = new BN(1000);
+          await staking.stakeMigration(stakeOwner, amount);
+
+          ({ stakeOwners, amounts, updatedStakes } = await notifier.getNotification());
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([amount]);
+          expect(updatedStakes).to.eqlBN([new BN(0)]);
+        });
+
+        context('with a reverting notifier', async () => {
+          beforeEach(async () => {
+            await notifier.setRevert(true);
+          });
+
+          it('should revert', async () => {
+            const stakeOwner = accounts[3];
+            const amount = new BN(123);
+            await expectRevert(staking.stakeMigration(stakeOwner, amount), 'StakeChangeNotifierMock: revert');
+          });
+        });
+      });
+    });
+  });
+
   describe('adding/removal of migration destinations', async () => {
     const testAddMigrationDestination = async (staking, destination) => {
       expect(await staking.isApprovedStakingContract(destination)).to.be.false();
@@ -201,7 +452,7 @@ contract('StakingContract', (accounts) => {
           await testAddMigrationDestination(staking, destination);
         }
 
-        expect(await staking.getApprovedStakingContracts()).to.have.members(migrationDestinations);
+        expect(await staking.getApprovedStakingContracts()).to.eql(migrationDestinations);
       });
 
       it('should not allow adding a 0 address', async () => {
@@ -256,7 +507,7 @@ contract('StakingContract', (accounts) => {
       it('should revert when trying to remove a non-existing contract', async () => {
         const destination = migrationDestinations[0];
         await staking.addMigrationDestination(destination, { from: sender });
-        expect(await staking.getApprovedStakingContracts()).to.have.members([destination]);
+        expect(await staking.getApprovedStakingContracts()).to.eql([destination]);
 
         await expectRevert(staking.removeMigrationDestination(accounts[20], { from: sender }),
           "StakingContract::removeMigrationDestination - staking contract doesn't exist");
@@ -265,7 +516,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('staking', async () => {
-    const testStaking = async (staking, stakeOwner, stake, from) => {
+    const testStaking = async (staking, notifier, stakeOwner, stake, from) => {
       const getState = async () => {
         const state = {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -287,6 +538,8 @@ contract('StakingContract', (accounts) => {
       const prevState = await getState();
       const totalStakedAmount = prevState.stakeOwnerStake.add(stake);
 
+      await notifier.reset();
+
       if (from === stakeOwner) {
         const tx = await staking.stake(stake, { from });
         expectEvent.inLogs(tx.logs, EVENTS.staked, { stakeOwner, amount: stake, totalStakedAmount });
@@ -294,6 +547,11 @@ contract('StakingContract', (accounts) => {
         const tx = await staking.acceptMigration(stakeOwner, stake, { from });
         expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, { stakeOwner, amount: stake, totalStakedAmount });
       }
+
+      const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([stake]);
+      expect(updatedStakes).to.eqlBN([totalStakedAmount]);
 
       const currentState = await getState();
 
@@ -317,9 +575,12 @@ contract('StakingContract', (accounts) => {
     };
 
     let staking;
+    let notifier;
     beforeEach(async () => {
       const cooldown = duration.days(1);
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
     context('without a stake', async () => {
@@ -336,7 +597,7 @@ contract('StakingContract', (accounts) => {
           await token.assign(stakeOwner, stake);
           await token.approve(staking.getAddress(), stake, { from: stakeOwner });
 
-          await testStaking(staking, stakeOwner, stake, stakeOwner);
+          await testStaking(staking, notifier, stakeOwner, stake, stakeOwner);
         }
       });
 
@@ -351,7 +612,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow staking on behalf of a different staker', async () => {
-          await testStaking(staking, stakeOwner2, stake, stakeOwner);
+          await testStaking(staking, notifier, stakeOwner2, stake, stakeOwner);
         });
 
         it('should not allow staking more tokens than the staker has', async () => {
@@ -374,6 +635,53 @@ contract('StakingContract', (accounts) => {
         it('should not allow staking on behalf of a 0 address', async () => {
           await expectRevert(staking.acceptMigration(constants.ZERO_ADDRESS, stake, { from: stakeOwner }),
             "StakingContract::stake - stake owner can't be 0");
+        });
+
+        context('with a reentrant notifier', async () => {
+          let reentrantNotifier;
+          beforeEach(async () => {
+            reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking, token);
+            await staking.setStakeChangeNotifier(reentrantNotifier, { from: migrationManager });
+          });
+
+          it('should effectively stake and deduct tokens twice', async () => {
+            await token.assign(reentrantNotifier.getAddress(), stake);
+            await reentrantNotifier.approve(staking, stake, { from: stakeOwner });
+            await reentrantNotifier.setStakeData(stakeOwner2, stake);
+
+            const tx = await staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner });
+
+            expect(tx.logs).to.have.length(2); // Two events for the double stake.
+            expectEvent.inLogs(tx.logs, EVENTS.acceptedMigration, {
+              stakeOwner: stakeOwner2,
+              amount: stake,
+              totalStakedAmount: stake,
+            });
+
+            const { stakeOwners, amounts, updatedStakes } = await reentrantNotifier.getNotification();
+            expect(stakeOwners).to.eql([stakeOwner2, stakeOwner2]);
+            expect(amounts).to.eqlBN([stake, stake]);
+            expect(updatedStakes).to.eqlBN([stake, stake.mul(new BN(2))]);
+
+            // The operation will result in a double stake attribute to stakeOwner2:
+            const effectiveStake = stake.mul(new BN(2));
+            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(effectiveStake);
+            expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(effectiveStake);
+          });
+
+          context('with an insufficient token balance', async () => {
+            it('should revert', async () => {
+              await token.assign(reentrantNotifier.getAddress(), stake.sub(new BN(1)));
+              await reentrantNotifier.approve(staking, stake, { from: stakeOwner });
+              await reentrantNotifier.setStakeData(stakeOwner2, stake);
+
+              await expectRevert(staking.acceptMigration(stakeOwner2, stake, { from: stakeOwner }),
+                'SafeMath: subtraction overflow');
+
+              expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(new BN(0));
+              expect(await staking.getStakeBalanceOf(stakeOwner2)).to.be.bignumber.eq(new BN(0));
+            });
+          });
         });
       });
 
@@ -398,6 +706,11 @@ contract('StakingContract', (accounts) => {
           const callerBalance = await token.balanceOf(caller);
 
           const tx = await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
+
+          const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+          expect(stakeOwners).to.eql(stakers);
+          expect(amounts).to.eqlBN(stakes);
+          expect(updatedStakes).to.eqlBN(stakes);
 
           for (let i = 0; i < stakers.length; ++i) {
             const stakeOwner = stakers[i];
@@ -463,6 +776,54 @@ contract('StakingContract', (accounts) => {
           await expectRevert(staking.distributeRewards(totalStake, stakers, stakes, { from: caller }),
             'StakingContract::distributeRewards - insufficient allowance');
         });
+
+        context('with a reentrant notifier', async () => {
+          let reentrantNotifier;
+          beforeEach(async () => {
+            reentrantNotifier = await ReentrantStakeChangeNotifier.new(staking, token);
+            await staking.setStakeChangeNotifier(reentrantNotifier, { from: migrationManager });
+          });
+
+          it('should effectively batch stake and deduct tokens multiple times', async () => {
+            const luckyStakerIndex = 9;
+            const luckyStaker = stakers[luckyStakerIndex];
+            const originalStake = stakes[luckyStakerIndex];
+            const luckyStake = new BN(100);
+            const additionalStake = luckyStake;
+
+            await token.assign(reentrantNotifier.getAddress(), additionalStake);
+            await reentrantNotifier.approve(staking, additionalStake, { from: caller });
+            await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
+
+            await staking.distributeRewards(totalStake, stakers, stakes, { from: caller });
+
+            // The notifier should have been called in this order:
+            //     S[0], ... , S[19], luckyStaker
+            const { stakeOwners, amounts, updatedStakes } = await reentrantNotifier.getNotification();
+            expect(stakeOwners).to.eql([...stakers, luckyStaker]);
+            expect(amounts).to.eqlBN([...stakes, luckyStake]);
+            expect(updatedStakes).to.eqlBN([...stakes, originalStake.add(additionalStake)]);
+
+            // The operation will result in an additional stake for luckyStaker:
+            expect(await token.balanceOf(staking.getAddress())).to.be.bignumber.eq(totalStake.add(additionalStake));
+            expect(await staking.getStakeBalanceOf(luckyStaker)).to.be.bignumber.eq(originalStake.add(additionalStake));
+          });
+
+          context('with an insufficient token balance', async () => {
+            it('should revert', async () => {
+              const luckyStakerIndex = 5;
+              const luckyStaker = stakers[luckyStakerIndex];
+              const luckyStake = new BN(100);
+              const additionalStake = luckyStake;
+
+              await token.assign(reentrantNotifier.getAddress(), additionalStake.sub(new BN(1)));
+              await reentrantNotifier.approve(staking, additionalStake, { from: caller });
+              await reentrantNotifier.setStakeData(luckyStaker, luckyStake);
+
+              await expectRevert.unspecified(staking.distributeRewards(totalStake, stakers, stakes, { from: caller }));
+            });
+          });
+        });
       });
     });
 
@@ -481,7 +842,7 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, newStake);
         await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-        await testStaking(staking, stakeOwner, newStake, stakeOwner);
+        await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
       });
 
       context('with unstaked tokens', async () => {
@@ -495,7 +856,7 @@ contract('StakingContract', (accounts) => {
           await token.assign(stakeOwner, newStake);
           await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-          await testStaking(staking, stakeOwner, newStake, stakeOwner);
+          await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
         });
 
         context('with pending withdrawal', async () => {
@@ -510,7 +871,7 @@ contract('StakingContract', (accounts) => {
             await token.assign(stakeOwner, newStake);
             await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-            await testStaking(staking, stakeOwner, newStake, stakeOwner);
+            await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
           });
 
           context('after full withdrawal', async () => {
@@ -523,7 +884,7 @@ contract('StakingContract', (accounts) => {
               await token.assign(stakeOwner, newStake);
               await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
 
-              await testStaking(staking, stakeOwner, newStake, stakeOwner);
+              await testStaking(staking, notifier, stakeOwner, newStake, stakeOwner);
             });
           });
         });
@@ -581,7 +942,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('unstaking', async () => {
-    const testUnstaking = async (staking, stakeOwner, unstakeAmount) => {
+    const testUnstaking = async (staking, notifier, stakeOwner, unstakeAmount) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -595,8 +956,15 @@ contract('StakingContract', (accounts) => {
       const prevState = await getState();
       const totalStakedAmount = prevState.stakeOwnerStake.sub(unstakeAmount);
 
+      await notifier.reset();
+
       const tx = await staking.unstake(unstakeAmount, { from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.unstaked, { stakeOwner, amount: unstakeAmount, totalStakedAmount });
+
+      const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([unstakeAmount.neg()]);
+      expect(updatedStakes).to.eqlBN([totalStakedAmount]);
 
       const currentState = await getState();
 
@@ -612,9 +980,12 @@ contract('StakingContract', (accounts) => {
     };
 
     let staking;
+    let notifier;
     const cooldown = duration.days(1);
     beforeEach(async () => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
     context('without a stake', async () => {
@@ -634,19 +1005,20 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, stake);
         await token.approve(staking.getAddress(), stake, { from: stakeOwner });
         await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
       });
 
       it('should allow partially unstaking of tokens', async () => {
-        await testUnstaking(staking, stakeOwner, new BN(100));
+        await testUnstaking(staking, notifier, stakeOwner, new BN(100));
 
         // Skip some time ahead in order to make sure that the following operation properly resets cooldown end time.
         await time.increase(duration.hours(6));
 
-        await testUnstaking(staking, stakeOwner, new BN(500));
+        await testUnstaking(staking, notifier, stakeOwner, new BN(500));
       });
 
       it('should allow unstaking of all tokens', async () => {
-        await testUnstaking(staking, stakeOwner, stake);
+        await testUnstaking(staking, notifier, stakeOwner, stake);
       });
 
       it('should not allow unstaking of 0 tokens', async () => {
@@ -684,8 +1056,9 @@ contract('StakingContract', (accounts) => {
             await token.assign(stakeOwner, newStake);
             await token.approve(staking.getAddress(), newStake, { from: stakeOwner });
             await staking.stake(newStake, { from: stakeOwner });
+            await notifier.reset();
 
-            await testUnstaking(staking, stakeOwner, newStake);
+            await testUnstaking(staking, notifier, stakeOwner, newStake);
           });
         });
       });
@@ -696,7 +1069,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow unstaking', async () => {
-          await testUnstaking(staking, stakeOwner, stake);
+          await testUnstaking(staking, notifier, stakeOwner, stake);
         });
       });
 
@@ -706,14 +1079,14 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow unstaking', async () => {
-          await testUnstaking(staking, stakeOwner, stake);
+          await testUnstaking(staking, notifier, stakeOwner, stake);
         });
       });
     });
   });
 
   describe('withdrawal', async () => {
-    const testWithdrawal = async (staking, stakeOwner) => {
+    const testWithdrawal = async (staking, notifier, stakeOwner) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -726,21 +1099,26 @@ contract('StakingContract', (accounts) => {
 
       const prevState = await getState();
 
+      await notifier.reset();
+
       let withdrawnAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
       let totalStakedAmount = prevState.stakeOwnerStake;
       let newtotalStakedTokens = prevState.totalStakedTokens;
+      let stakedAmountDiff = new BN(0);
       if (await staking.releasingAllStakes()) {
         withdrawnAmount = withdrawnAmount.add(prevState.stakeOwnerStake);
         totalStakedAmount = totalStakedAmount.sub(prevState.stakeOwnerStake);
         newtotalStakedTokens = newtotalStakedTokens.sub(prevState.stakeOwnerStake);
-      } else {
-        withdrawnAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
-        totalStakedAmount = prevState.stakeOwnerStake;
-        newtotalStakedTokens = prevState.totalStakedTokens;
+        stakedAmountDiff = withdrawnAmount.neg();
       }
 
       const tx = await staking.withdraw({ from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: withdrawnAmount, totalStakedAmount });
+
+      const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([stakedAmountDiff]);
+      expect(updatedStakes).to.eqlBN([totalStakedAmount]);
 
       const currentState = await getState();
 
@@ -753,9 +1131,12 @@ contract('StakingContract', (accounts) => {
     };
 
     let staking;
+    let notifier;
     const cooldown = duration.days(1);
     beforeEach(async () => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
     context('without a stake', async () => {
@@ -786,6 +1167,7 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, stake);
         await token.approve(staking.getAddress(), stake, { from: stakeOwner });
         await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
       });
 
       it('should not allow withdrawal', async () => {
@@ -797,6 +1179,7 @@ contract('StakingContract', (accounts) => {
         const unstakeAmount = new BN(100);
         beforeEach(async () => {
           await staking.unstake(unstakeAmount, { from: stakeOwner });
+          await notifier.reset();
         });
 
         it('should not allow withdrawal', async () => {
@@ -812,7 +1195,7 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should allow withdrawal of all unstaked tokens', async () => {
-            await testWithdrawal(staking, stakeOwner);
+            await testWithdrawal(staking, notifier, stakeOwner);
           });
 
           it('should not allow withdrawal if unable to transfer', async () => {
@@ -839,7 +1222,7 @@ contract('StakingContract', (accounts) => {
             });
 
             it('should allow withdrawal', async () => {
-              await testWithdrawal(staking, stakeOwner);
+              await testWithdrawal(staking, notifier, stakeOwner);
             });
           });
         });
@@ -851,14 +1234,14 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow withdrawal of all unstaked tokens', async () => {
-          await testWithdrawal(staking, stakeOwner);
+          await testWithdrawal(staking, notifier, stakeOwner);
         });
       });
     });
   });
 
   describe('restaking', async () => {
-    const testRestaking = async (staking, stakeOwner) => {
+    const testRestaking = async (staking, notifier, stakeOwner) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -873,8 +1256,15 @@ contract('StakingContract', (accounts) => {
       const unstakedAmount = prevState.stakeOwnerUnstakedStatus.cooldownAmount;
       const totalStakedAmount = prevState.stakeOwnerStake.add(unstakedAmount);
 
+      await notifier.reset();
+
       const tx = await staking.restake({ from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.restaked, { stakeOwner, amount: unstakedAmount, totalStakedAmount });
+
+      const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([unstakedAmount]);
+      expect(updatedStakes).to.eqlBN([totalStakedAmount]);
 
       const currentState = await getState();
 
@@ -887,9 +1277,12 @@ contract('StakingContract', (accounts) => {
     };
 
     let staking;
+    let notifier;
     const cooldown = duration.days(1);
     beforeEach(async () => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
     });
 
     context('without a stake', async () => {
@@ -909,6 +1302,7 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, stake);
         await token.approve(staking.getAddress(), stake, { from: stakeOwner });
         await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
       });
 
       it('should not allow restaking', async () => {
@@ -920,10 +1314,11 @@ contract('StakingContract', (accounts) => {
         const unstakeAmount = new BN(100);
         beforeEach(async () => {
           await staking.unstake(unstakeAmount, { from: stakeOwner });
+          await notifier.reset();
         });
 
         it('should allow restaking', async () => {
-          await testRestaking(staking, stakeOwner);
+          await testRestaking(staking, notifier, stakeOwner);
         });
 
         context('pending withdrawal', async () => {
@@ -934,7 +1329,7 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should allow restaking', async () => {
-            await testRestaking(staking, stakeOwner);
+            await testRestaking(staking, notifier, stakeOwner);
           });
 
           context('fully withdrawn', async () => {
@@ -975,7 +1370,7 @@ contract('StakingContract', (accounts) => {
   });
 
   describe('migration to new staking contracts', async () => {
-    const testMigration = async (staking, stakeOwner, amount, migrationDestination) => {
+    const testMigration = async (staking, notifier, stakeOwner, amount, migrationDestination, migrationNotifier) => {
       const getState = async () => {
         return {
           stakingBalance: await token.balanceOf(staking.getAddress()),
@@ -995,6 +1390,16 @@ contract('StakingContract', (accounts) => {
 
       const tx = await staking.migrateStakedTokens(migrationDestination, amount, { from: stakeOwner });
       expectEvent.inLogs(tx.logs, EVENTS.migratedStake, { stakeOwner, amount, totalStakedAmount });
+
+      let { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([amount]);
+      expect(updatedStakes).to.eqlBN([new BN(0)]);
+
+      ({ stakeOwners, amounts, updatedStakes } = await migrationNotifier.getNotification());
+      expect(stakeOwners).to.eql([stakeOwner]);
+      expect(amounts).to.eqlBN([amount]);
+      expect(updatedStakes).to.eqlBN([prevState.migrationTotalStakedTokens.add(amount)]);
 
       const currentState = await getState();
 
@@ -1017,18 +1422,26 @@ contract('StakingContract', (accounts) => {
     };
 
     let staking;
+    let notifier;
     const cooldown = duration.days(1);
     let migrationDestinations;
+    let migrationNotifiers;
     beforeEach(async () => {
       staking = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+      notifier = await StakeChangeNotifier.new();
+      await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
 
       migrationDestinations = [];
+      migrationNotifiers = [];
 
       for (let i = 0; i < 3; ++i) {
         const migrationDestination = await StakingContract.new(cooldown, migrationManager, emergencyManager, token);
+        const migrationNotifier = await StakeChangeNotifier.new();
+        await migrationDestination.setStakeChangeNotifier(migrationNotifier, { from: migrationManager });
         await staking.addMigrationDestination(migrationDestination, { from: migrationManager });
 
         migrationDestinations.push(migrationDestination);
+        migrationNotifiers.push(migrationNotifier);
       }
     });
 
@@ -1050,16 +1463,20 @@ contract('StakingContract', (accounts) => {
         await token.assign(stakeOwner, stake);
         await token.approve(staking.getAddress(), stake, { from: stakeOwner });
         await staking.stake(stake, { from: stakeOwner });
+        await notifier.reset();
       });
 
       it('should allow migration', async () => {
-        await testMigration(staking, stakeOwner, stake, migrationDestinations[0]);
+        await testMigration(staking, notifier, stakeOwner, stake, migrationDestinations[0], migrationNotifiers[0]);
       });
 
       it('should allow partial migration', async () => {
         const remainder = new BN(100);
-        await testMigration(staking, stakeOwner, stake.sub(remainder), migrationDestinations[0]);
-        await testMigration(staking, stakeOwner, remainder, migrationDestinations[1]);
+        await testMigration(staking, notifier, stakeOwner, stake.sub(remainder), migrationDestinations[0],
+          migrationNotifiers[0]);
+        await notifier.reset();
+        await testMigration(staking, notifier, stakeOwner, remainder, migrationDestinations[1],
+          migrationNotifiers[1]);
       });
 
       it('should only allow migration to an approved migration destination', async () => {
@@ -1069,16 +1486,26 @@ contract('StakingContract', (accounts) => {
 
         for (let i = 0; i < migrationDestinations.length; ++i) {
           const migrationDestination = migrationDestinations[i];
+          const migrationNotifier = migrationNotifiers[i];
           const tx = await staking.migrateStakedTokens(migrationDestination, stake, { from: stakeOwner });
           expectEvent.inLogs(tx.logs, EVENTS.migratedStake, {
-            stakeOwner,
-            amount: stake,
-            totalStakedAmount: new BN(0),
+            stakeOwner, amount: stake, totalStakedAmount: new BN(0),
           });
+
+          let { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([stake]);
+          expect(updatedStakes).to.eqlBN([new BN(0)]);
+
+          ({ stakeOwners, amounts, updatedStakes } = await migrationNotifier.getNotification());
+          expect(stakeOwners).to.eql([stakeOwner]);
+          expect(amounts).to.eqlBN([stake]);
+          expect(updatedStakes).to.eqlBN([stake]);
 
           await token.assign(stakeOwner, stake);
           await token.approve(staking.getAddress(), stake, { from: stakeOwner });
           await staking.stake(stake, { from: stakeOwner });
+          await notifier.reset();
         }
       });
 
@@ -1112,10 +1539,12 @@ contract('StakingContract', (accounts) => {
         const unstakeAmount = new BN(100);
         beforeEach(async () => {
           await staking.unstake(unstakeAmount, { from: stakeOwner });
+          await notifier.reset();
         });
 
         it('should only migrate tokens not in cooldown', async () => {
-          await testMigration(staking, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[2]);
+          await testMigration(staking, notifier, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[2],
+            migrationNotifiers[2]);
         });
 
         context('with a pending withdrawal', async () => {
@@ -1126,16 +1555,19 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should only migrate tokens not in cooldown', async () => {
-            await testMigration(staking, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[2]);
+            await testMigration(staking, notifier, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[2],
+              migrationNotifiers[2]);
           });
 
           context('after a full withdrawal', async () => {
             beforeEach(async () => {
               await staking.withdraw({ from: stakeOwner });
+              await notifier.reset();
             });
 
             it('should only migrate tokens not in cooldown', async () => {
-              await testMigration(staking, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[1]);
+              await testMigration(staking, notifier, stakeOwner, stake.sub(unstakeAmount), migrationDestinations[1],
+                migrationNotifiers[1]);
             });
           });
         });
@@ -1147,7 +1579,7 @@ contract('StakingContract', (accounts) => {
         });
 
         it('should allow migration', async () => {
-          await testMigration(staking, stakeOwner, stake, migrationDestinations[1]);
+          await testMigration(staking, notifier, stakeOwner, stake, migrationDestinations[1], migrationNotifiers[1]);
         });
       });
 
@@ -1276,6 +1708,12 @@ contract('StakingContract', (accounts) => {
       });
 
       describe('batch withdraw', async () => {
+        let notifier;
+        beforeEach(async () => {
+          notifier = await StakeChangeNotifier.new();
+          await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
+        });
+
         context('with an unstaked stakes', async () => {
           const caller = accounts[10];
           const stakers = accounts.slice(0, 10);
@@ -1336,7 +1774,14 @@ contract('StakingContract', (accounts) => {
                 prevStakeOwnersStates.push(await getStakeOwnerState(stakeOwner));
               }
 
+              await notifier.reset();
+
               const tx = await staking.withdrawReleasedStakes(stakers, { from: caller });
+
+              const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
+              expect(stakeOwners).to.eql(stakers);
+              expect(amounts).to.eqlBN(prevStakeOwnersStates.map((s) => s.stakeOwnerStake.neg()));
+              expect(updatedStakes).to.eqlBN(Array(prevStakeOwnersStates.length).fill(new BN(0)));
 
               let totalWithdrawn = new BN(0);
               let totalReleasedStake = new BN(0);

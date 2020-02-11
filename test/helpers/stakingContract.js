@@ -1,3 +1,5 @@
+import { Assertion, util } from 'chai';
+import { BN } from '@openzeppelin/test-helpers';
 import BaseContract from './baseContract';
 
 const StakingContractWrapper = artifacts.require('../../contracts/tests/StakingContractWrapper.sol');
@@ -49,6 +51,10 @@ class StakingContract extends BaseContract {
     };
   }
 
+  async getStakeChangeNotifier() {
+    return this.contract.notifier.call();
+  }
+
   async getMigrationManager() {
     return this.contract.migrationManager.call();
   }
@@ -86,6 +92,24 @@ class StakingContract extends BaseContract {
 
   async setEmergencyManager(manager, options = {}) {
     return this.contract.setEmergencyManager(StakingContract.getAddress(manager), options);
+  }
+
+  async setStakeChangeNotifier(notifier, options = {}) {
+    return this.contract.setStakeChangeNotifier(StakingContract.getAddress(notifier), options);
+  }
+
+  async stakeChange(stakeOwner, amount, updatedStake) {
+    return this.contract.notifyStakeChange(StakingContract.getAddress(stakeOwner), amount, !amount.isNeg(),
+      updatedStake);
+  }
+
+  async stakeChangeBatch(stakeOwners, amounts, updatedStakes) {
+    return this.contract.notifyStakeChangeBatch(stakeOwners.map((stakeOwner) => StakingContract.getAddress(stakeOwner)),
+      amounts, amounts.map((amount) => !amount.isNeg()), updatedStakes);
+  }
+
+  async stakeMigration(stakeOwner, amount) {
+    return this.contract.notifyStakeMigration(StakingContract.getAddress(stakeOwner), amount);
   }
 
   async addMigrationDestination(newStakingContract, options = {}) {
@@ -153,10 +177,42 @@ class StakingContract extends BaseContract {
       migrationDestinationAdded: 'MigrationDestinationAdded',
       migrationDestinationRemoved: 'MigrationDestinationRemoved',
       emergencyManagerUpdated: 'EmergencyManagerUpdated',
+      stakeChangeNotifierUpdated: 'StakeChangeNotifierUpdated',
       stoppedAcceptingNewStake: 'StoppedAcceptingNewStake',
       releasedAllStakes: 'ReleasedAllStakes',
     };
   }
+
+  static getStakeChangeNotificationGasLimit() {
+    return 2000000;
+  }
 }
 
 export default StakingContract;
+
+Assertion.addMethod('eqlBN', function eqlBN(bnArray) {
+  if (util.flag(this, 'negate')) {
+    throw new Error('eqlBN negation is currently unsupported');
+  }
+
+  const obj = this._obj; // eslint-disable-line no-underscore-dangle
+
+  new Assertion(obj).to.be.instanceof(Array);
+
+  this.assert(
+    obj.length === bnArray.length,
+    `expected #{this} length ${obj.length} to be equal to [${bnArray.length}]`,
+    `expected #{this} length ${obj.length} not to be equal to [${bnArray.length}]`,
+  );
+
+  for (let i = 0; i < obj.length; ++i) {
+    const value = new BN(obj[i]);
+    const expectedValue = new BN(bnArray[i]);
+
+    this.assert(
+      value.eq(expectedValue),
+      `expected element ${i}'s value ${value.toNumber()} to be equal to ${expectedValue.toNumber()}`,
+      `expected element ${i}'s value ${value.toNumber()} not to be equal to ${expectedValue.toNumber()}`,
+    );
+  }
+});
