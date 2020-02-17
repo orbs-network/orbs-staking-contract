@@ -1,6 +1,6 @@
-pragma solidity 0.4.26;
+pragma solidity 0.5.16;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./IStakingContract.sol";
 
@@ -21,10 +21,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     uint public constant MAX_APPROVED_STAKING_CONTRACTS = 10;
 
     // The mapping between stake owners and their data.
-    mapping (address => Stake) public stakes;
+    mapping(address => Stake) internal stakes;
 
     // Total amount of staked tokens (not including unstaked tokes in cooldown or pending withdrawal).
-    uint256 public totalStakedTokens;
+    uint256 internal totalStakedTokens;
 
     // The period (in seconds) between a stake owner's request to stop staking and being able to withdraw them.
     uint256 public cooldownPeriodInSec;
@@ -40,7 +40,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     IMigratableStakingContract[] public approvedStakingContracts;
 
     // The address of the ORBS token.
-    IERC20 public token;
+    IERC20 internal token;
 
     // Represents whether the contract accepts new staking requests. Please note, that even when it's turned off,
     // it'd be still possible to unstake or withdraw tokens.
@@ -121,7 +121,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         migrationManager = _newMigrationManager;
 
-        emit MigrationManagerUpdated(migrationManager);
+        emit MigrationManagerUpdated(_newMigrationManager);
     }
 
     /// @dev Sets the address of the emergency manager.
@@ -133,7 +133,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emergencyManager = _newEmergencyManager;
 
-        emit EmergencyManagerUpdated(emergencyManager);
+        emit EmergencyManagerUpdated(_newEmergencyManager);
     }
 
     /// @dev Adds a new contract to the list of approved staking contracts migration destinations.
@@ -141,11 +141,13 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     function addMigrationDestination(IMigratableStakingContract _newStakingContract) external onlyMigrationManager {
         require(address(_newStakingContract) != address(0),
             "StakingContract::addMigrationDestination - address must not be 0");
-        require(approvedStakingContracts.length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
+
+        uint length = approvedStakingContracts.length;
+        require(length + 1 <= MAX_APPROVED_STAKING_CONTRACTS,
             "StakingContract::addMigrationDestination - can't add more staking contracts");
 
         // Check for duplicates.
-        for (uint i = 0; i < approvedStakingContracts.length; ++i) {
+        for (uint i = 0; i < length; ++i) {
             require(approvedStakingContracts[i] != _newStakingContract,
                 "StakingContract::addMigrationDestination - can't add a duplicate staking contract");
         }
@@ -165,13 +167,9 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         (uint i, bool exists) = findApprovedStakingContractIndex(_stakingContract);
         require(exists, "StakingContract::removeMigrationDestination - staking contract doesn't exist");
 
-        while (i < approvedStakingContracts.length - 1) {
-            approvedStakingContracts[i] = approvedStakingContracts[i + 1];
-            i++;
-        }
-
-        delete approvedStakingContracts[i];
-        approvedStakingContracts.length--;
+        // Swap the requested element with the last element and then delete it using pop/
+        approvedStakingContracts[i] = approvedStakingContracts[approvedStakingContracts.length - 1];
+        approvedStakingContracts.pop();
 
         emit MigrationDestinationRemoved(_stakingContract);
     }
@@ -293,7 +291,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @param _totalAmount uint256 The total amount of rewards to distributes.
     /// @param _stakeOwners address[] The addresses of the stake owners.
     /// @param _amounts uint256[] The amounts of the rewards.
-    function distributeRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external
+    function distributeRewards(uint256 _totalAmount, address[] calldata _stakeOwners, uint256[] calldata _amounts) external
         onlyWhenAcceptingNewStakes {
         require(_totalAmount > 0, "StakingContract::distributeRewards - total amount must be greater than 0");
 
@@ -376,7 +374,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
     /// @dev Requests withdraw of released tokens of a list of addresses.
     /// @param _stakeOwners address[] The addresses of the stake owners.
-    function withdrawReleasedStakes(address[] _stakeOwners) external onlyWhenStakesReleased {
+    function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
@@ -460,7 +458,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         for (index = 0; index < length; ++index) {
             if (approvedStakingContracts[index] == _stakingContract) {
                 exists = true;
-                return;
+                return (index, exists);
             }
         }
 

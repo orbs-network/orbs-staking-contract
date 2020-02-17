@@ -1,6 +1,6 @@
 {
     "name": "orbs-staking-contract",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "Orbs Staking Smart Contracts",
     "repository": {
         "type": "git",
@@ -47,10 +47,12 @@
         "eth-gas-reporter": "^0.2.11",
         "ganache-cli": "^6.7.0",
         "mocha-lcov-reporter": "^1.3.0",
-        "openzeppelin-test-helpers": "^0.4.3",
-        "solc": "0.4.26",
-        "solhint": "^2.2.0",
+        "@openzeppelin/contracts": "2.3.0",
+        "@openzeppelin/test-helpers": "^0.5.4",
+        "solc": "0.5.16",
+        "solhint": "^2.3.0",
         "solidity-coverage": "^0.6.7",
+        "truffle": "5.0.36",
         "truffle-flattener": "^1.4.2"
     }
 }

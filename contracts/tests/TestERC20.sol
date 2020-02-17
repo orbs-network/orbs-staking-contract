@@ -1,6 +1,6 @@
-pragma solidity 0.4.26;
+pragma solidity 0.5.16;
 
-import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
     bool public failApprove;

@@ -1,4 +1,4 @@
-pragma solidity 0.4.26;
+pragma solidity 0.5.16;
 
 import "./IMigratableStakingContract.sol";
 
@@ -29,7 +29,7 @@ interface IStakingContract {
     /// @param _totalAmount uint256 The total amount of rewards to distributes.
     /// @param _stakeOwners address[] The addresses of the stake owners.
     /// @param _amounts uint256[] The amounts of the rewards.
-    function distributeRewards(uint256 _totalAmount, address[] _stakeOwners, uint256[] _amounts) external;
+    function distributeRewards(uint256 _totalAmount, address[] calldata _stakeOwners, uint256[] calldata _amounts) external;
 
     /// @dev Returns the stake of the specified stake owner (excluding unstaked tokens).
     /// @param _stakeOwner address The address to check.
