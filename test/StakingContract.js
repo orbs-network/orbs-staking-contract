@@ -1105,7 +1105,9 @@ contract('StakingContract', (accounts) => {
       let totalStakedAmount = prevState.stakeOwnerStake;
       let newtotalStakedTokens = prevState.totalStakedTokens;
       let stakedAmountDiff = new BN(0);
-      if (await staking.releasingAllStakes()) {
+
+      const releasingAllStakes = await staking.releasingAllStakes();
+      if (releasingAllStakes) {
         withdrawnAmount = withdrawnAmount.add(prevState.stakeOwnerStake);
         totalStakedAmount = totalStakedAmount.sub(prevState.stakeOwnerStake);
         newtotalStakedTokens = newtotalStakedTokens.sub(prevState.stakeOwnerStake);
@@ -1116,9 +1118,15 @@ contract('StakingContract', (accounts) => {
       expectEvent.inLogs(tx.logs, EVENTS.withdrew, { stakeOwner, amount: withdrawnAmount, totalStakedAmount });
 
       const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
-      expect(stakeOwners).to.eql([stakeOwner]);
-      expect(amounts).to.eqlBN([stakedAmountDiff]);
-      expect(updatedStakes).to.eqlBN([totalStakedAmount]);
+      if (releasingAllStakes) {
+        expect(stakeOwners).to.eql([stakeOwner]);
+        expect(amounts).to.eqlBN([stakedAmountDiff]);
+        expect(updatedStakes).to.eqlBN([totalStakedAmount]);
+      } else {
+        expect(stakeOwners).to.be.empty();
+        expect(amounts).to.be.empty();
+        expect(updatedStakes).to.be.empty();
+      }
 
       const currentState = await getState();
 
@@ -1778,10 +1786,18 @@ contract('StakingContract', (accounts) => {
 
               const tx = await staking.withdrawReleasedStakes(stakers, { from: caller });
 
+              const releasingAllStakes = await staking.releasingAllStakes();
               const { stakeOwners, amounts, updatedStakes } = await notifier.getNotification();
-              expect(stakeOwners).to.eql(stakers);
-              expect(amounts).to.eqlBN(prevStakeOwnersStates.map((s) => s.stakeOwnerStake.neg()));
-              expect(updatedStakes).to.eqlBN(Array(prevStakeOwnersStates.length).fill(new BN(0)));
+
+              if (releasingAllStakes) {
+                expect(stakeOwners).to.eql(stakers);
+                expect(amounts).to.eqlBN(prevStakeOwnersStates.map((s) => s.stakeOwnerStake.neg()));
+                expect(updatedStakes).to.eqlBN(Array(prevStakeOwnersStates.length).fill(new BN(0)));
+              } else {
+                expect(stakeOwners).to.be.empty();
+                expect(amounts).to.be.empty();
+                expect(updatedStakes).to.be.empty();
+              }
 
               let totalWithdrawn = new BN(0);
               let totalReleasedStake = new BN(0);

@@ -19,7 +19,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         uint256 withdrawnAmount;
         uint256 stakedAmount;
         uint256 stakedAmountDiff;
-        bool stakedAmountDiffSign;
     }
 
     // The version of the smart contract.
@@ -43,7 +42,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     // The address responsible for emergency operations and graceful return of staked tokens back to their owners.
     address public emergencyManager;
 
-    // The list of staking contracts which are approved by this contract. It would be only allowed to migrate a stake to
+    // The list of staking contracts that are approved by this contract. It would be only allowed to migrate a stake to
     // one of these contracts.
     IMigratableStakingContract[] public approvedStakingContracts;
 
@@ -262,10 +261,19 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
 
+        // Trigger state change notifications only in case we're releasing all stakes, thus changing the staking
+        // amounts.
+        if (!releasingAllStakes) {
+            return;
+        }
+
+        assert(res.stakedAmountDiff > 0);
+        assert(res.stakedAmount == 0);
+
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        stakeChange(stakeOwner, res.stakedAmountDiff, res.stakedAmountDiffSign, res.stakedAmount);
+        stakeChange(stakeOwner, res.stakedAmountDiff, false, 0);
     }
 
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
@@ -345,7 +353,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     /// @dev Distributes staking rewards to a list of addresses by directly adding rewards to their stakes. This method
     /// assumes that the user has already approved at least the required amount using ERC20 approve. Since this is a
     /// convenience method, we aren't concerned about reaching block gas limit by using large lists. We assume that
-    /// callers will be able to properly batch/paginate their requests.
+    /// callers will be able to batch/paginate their requests properly.
     /// @param _totalAmount uint256 The total amount of rewards to distributes.
     /// @param _stakeOwners address[] The addresses of the stake owners.
     /// @param _amounts uint256[] The amounts of the rewards.
@@ -442,29 +450,48 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         emit ReleasedAllStakes();
     }
 
-    /// @dev Requests withdraw of released tokens of a list of addresses.
+    /// @dev Requests withdraw of released tokens for a list of addresses.
     /// @param _stakeOwners address[] The addresses of the stake owners.
     function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
-        uint256[] memory amounts = new uint256[](stakeOwnersLength);
-        bool[] memory signs = new bool[](stakeOwnersLength);
+        uint256[] memory stakedAmountDiffs = new uint256[](stakeOwnersLength);
         uint256[] memory totalStakedAmounts = new uint256[](stakeOwnersLength);
+
+        // Trigger state change notifications only in case we're releasing all stakes, thus changing the staking
+        // amounts.
+        bool notify = releasingAllStakes;
 
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
             WithdrawResult memory res = withdraw(stakeOwner);
-            amounts[i] = res.stakedAmountDiff;
-            signs[i] = res.stakedAmountDiffSign;
-            totalStakedAmounts[i] = res.stakedAmount;
+
+            if (notify) {
+                stakedAmountDiffs[i] = res.stakedAmountDiff;
+                totalStakedAmounts[i] = res.stakedAmount;
+            }
 
             emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
+        }
+
+        // Trigger state change notifications only in case we're releasing all stakes, thus changing the staking
+        // amounts.
+        if (!notify) {
+            return;
+        }
+
+        bool[] memory signs = new bool[](stakeOwnersLength);
+        for (uint i = 0; i < stakeOwnersLength; ++i) {
+            assert(stakedAmountDiffs[i] > 0);
+            assert(totalStakedAmounts[i] == 0);
+
+            signs[i] = false;
         }
 
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        stakeChangeBatch(_stakeOwners, amounts, signs, totalStakedAmounts);
+        stakeChangeBatch(_stakeOwners, stakedAmountDiffs, signs, totalStakedAmounts);
     }
 
     /// @dev Returns whether a specific staking contract was approved as a migration destination.
@@ -555,7 +582,6 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
             // If the contract was requested to release all stakes - allow to withdraw all staked and unstaked tokens.
             res.withdrawnAmount = res.withdrawnAmount.add(res.stakedAmount);
             res.stakedAmountDiff = res.stakedAmount;
-            res.stakedAmountDiffSign = false;
 
             require(res.withdrawnAmount > 0, "StakingContract::withdraw - no staked or unstaked tokens");
 
