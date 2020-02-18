@@ -1722,7 +1722,7 @@ contract('StakingContract', (accounts) => {
           await staking.setStakeChangeNotifier(notifier, { from: migrationManager });
         });
 
-        context('with an unstaked stakes', async () => {
+        context('with unstaked stakes', async () => {
           const caller = accounts[10];
           const stakers = accounts.slice(0, 10);
           const stakeAmounts = [
@@ -1748,7 +1748,7 @@ contract('StakingContract', (accounts) => {
           });
 
           it('should not allow batch withdrawal of all stakes', async () => {
-            await expectRevert(staking.withdrawReleasedStakes(accounts),
+            await expectRevert(staking.withdrawReleasedStakes(stakers),
               'StakingContract: not releasing all stakes');
           });
 

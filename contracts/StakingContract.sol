@@ -267,13 +267,10 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
             return;
         }
 
-        assert(res.stakedAmountDiff > 0);
-        assert(res.stakedAmount == 0);
-
         // Note: we aren't concerned with reentrancy since:
         //   1. At this point, due to the CEI pattern, a reentrant notifier can't affect the effects of this method.
         //   2. The notifier is set and managed by the migration manager.
-        stakeChange(stakeOwner, res.stakedAmountDiff, false, 0);
+        stakeChange(stakeOwner, res.stakedAmountDiff, false, res.stakedAmount);
     }
 
     /// @dev Restakes unstaked ORBS tokens (in or after cooldown) for msg.sender.
@@ -455,37 +452,18 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
     function withdrawReleasedStakes(address[] calldata _stakeOwners) external onlyWhenStakesReleased {
         uint256 stakeOwnersLength = _stakeOwners.length;
         uint256[] memory stakedAmountDiffs = new uint256[](stakeOwnersLength);
+        bool[] memory signs = new bool[](stakeOwnersLength);
         uint256[] memory totalStakedAmounts = new uint256[](stakeOwnersLength);
-
-        // Trigger state change notifications only in case we're releasing all stakes, thus changing the staking
-        // amounts.
-        bool notify = releasingAllStakes;
 
         for (uint i = 0; i < stakeOwnersLength; ++i) {
             address stakeOwner = _stakeOwners[i];
 
             WithdrawResult memory res = withdraw(stakeOwner);
-
-            if (notify) {
-                stakedAmountDiffs[i] = res.stakedAmountDiff;
-                totalStakedAmounts[i] = res.stakedAmount;
-            }
+            stakedAmountDiffs[i] = res.stakedAmountDiff;
+            signs[i] = false;
+            totalStakedAmounts[i] = res.stakedAmount;
 
             emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
-        }
-
-        // Trigger state change notifications only in case we're releasing all stakes, thus changing the staking
-        // amounts.
-        if (!notify) {
-            return;
-        }
-
-        bool[] memory signs = new bool[](stakeOwnersLength);
-        for (uint i = 0; i < stakeOwnersLength; ++i) {
-            assert(stakedAmountDiffs[i] > 0);
-            assert(totalStakedAmounts[i] == 0);
-
-            signs[i] = false;
         }
 
         // Note: we aren't concerned with reentrancy since:
