@@ -261,9 +261,8 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
 
         emit Withdrew(stakeOwner, res.withdrawnAmount, res.stakedAmount);
 
-        // Trigger state change notifications only in case we're releasing all stakes, thus changing the staking
-        // amounts.
-        if (!releasingAllStakes) {
+        // Trigger staking state change notifications only if the staking amount was changed.
+        if (res.stakedAmountDiff == 0) {
             return;
         }
 
