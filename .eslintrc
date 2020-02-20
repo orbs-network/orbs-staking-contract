@@ -22,10 +22,10 @@
         "object-curly-newline": [
             "error",
             {
-                "ImportDeclaration": "never",
+                "ImportDeclaration": "never"
             }
         ],
-        "no-loop-func": "off",
+        "no-loop-func": "off"
     },
     "globals": {
         "assert": true,

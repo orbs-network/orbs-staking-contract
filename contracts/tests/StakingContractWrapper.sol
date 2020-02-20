@@ -8,6 +8,19 @@ contract StakingContractWrapper is StakingContract {
         IERC20 _token) public StakingContract(_cooldownPeriodInSec, _migrationManager, _emergencyManager, _token) {
     }
 
+    function notifyStakeChange(address _stakeOwner, uint256 _amount, bool _sign, uint256 _updatedStake) external {
+        super.stakeChange(_stakeOwner, _amount, _sign, _updatedStake);
+    }
+
+    function notifyStakeChangeBatch(address[] calldata _stakeOwners, uint256[] calldata _amounts,
+        bool[] calldata _signs, uint256[] calldata _updatedStakes) external {
+        super.stakeChangeBatch(_stakeOwners, _amounts, _signs, _updatedStakes);
+    }
+
+    function notifyStakeMigration(address _stakeOwner, uint256 _amount) external {
+        super.stakeMigration(_stakeOwner, _amount);
+    }
+
     function getApprovedStakingContractsLength() external view returns (uint256) {
         return approvedStakingContracts.length;
     }

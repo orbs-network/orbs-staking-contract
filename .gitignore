@@ -3,10 +3,11 @@
 *.log
 .vscode/
 /node_modules
-/build
 /dist
+/build
+/.coverage_artifacts
+/.coverage_contracts
 /coverage
-/coverageEnv
 /coverage.json
 /allFiredEvents
 /scTopics
