@@ -60,7 +60,7 @@ All in all there are 3 entities in the system:
 
 &nbsp;
 ### Stake Change Notifications
-The staking contract implements an interface to notify another contract of a stake change. The stake change notification is designed to notify Orbs election contract, updating the staking and delegation map. The election contract is trusted not to revert a user staking transaction. Setting the notifier contract is done by the migration manager. 
+The staking contract implements an interface to notify another contract of a stake change. The stake change notification is designed to notify Orbs election contract, updating the staking and delegation map. The election contract is trusted not to revert a user staking transaction. In case of an unexpected issue in the notifier contract that causes staking transactions to fail, the migration manager can intervene and update the notifier contract. Setting the notifier contract is done by the migration manager. 
 
 Initially, the migration manager will be a multisig operated by the Orbs core team. The Orbs core team’s service as the migration manager is an administrative function, consistent with other administrative functions that the Orbs core team is fulfilling during the early period after the launch of the Orbs network. As with its other administrative functions, the Orbs core team will act in its capacity as migration manager in consultation with the Orbs network’s community. It is anticipated that, at a later stage, when the network and its governance mechanisms are more developed and robust, the migration manager should be controlled directly by the network’s then-applicable governance.
 
@@ -118,9 +118,9 @@ Note that the function `acceptMigration()` may also be used to stake on behalf o
 
 &nbsp;
 ### Stake Change Notifier
-The staking contract implements a notifier functionality used to notify stake changes and migrations to Orbs election contracts. Any change in an staking owner stake as a result of `stake`, `unstake`, `withdraw`, `withdrawReleasedStakes()`, `distributeRewards()`, `acceptMigration` is notified. The notification includes the stake owner address, stake change and the new stake amount. The migration of stake by the owner to a new contract is also notified.
+The staking contract implements a notifier functionality used to notify stake changes and migrations to Orbs election contracts. Any change in an staking owner stake as a result of `stake()`, `unstake()`, `withdraw()`, `withdrawReleasedStakes()`, `distributeRewards()`, `acceptMigration()` is notified. The notification includes the stake owner address, stake change and the new stake amount. The migration of stake by the owner to a new contract is also notified.
 
-The notified contract (`StakeChangeNotifier`) is assumed trusted, and is set by the migration manager. This prevents a scenario where the notified contract reverts a transaction. In case of an unexpected issue in the contract that causes a revert, the migration manager can intervene and change the notifier contract using `setStakeChangeNotifier`.
+The notified contract (`StakeChangeNotifier`) is assumed trusted, and is set by the migration manager. This prevents a scenario where the notified contract reverts a transaction. In case of an unexpected issue in the contract that causes a revert, the migration manager can intervene and change the notifier contract using `setStakeChangeNotifier()`.
 
 When the `StakeChangeNotifier` is set to address 0, no notifications are sent.
 
