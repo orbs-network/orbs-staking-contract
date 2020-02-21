@@ -58,6 +58,11 @@ All in all there are 3 entities in the system:
 * A migration manager that, in an administrative capacity, handles migration destination contracts.
 * An emergency manager that, in an administrative capacity, can freeze the staking contract and override the cooldown period in the event of a serious bug in the contract.
 
+&nbsp;
+### Stake Change Notifications
+The staking contract implements an interface to notify another contract of a stake change. The stake change notification is designed to notify Orbs election contract, updating the staking and delegation map. The election contract is trusted not to revert a user staking transaction. In case of an unexpected issue in the notifier contract that causes staking transactions to fail, the migration manager can intervene and update the notifier contract. Setting the notifier contract is done by the migration manager. 
+
+Initially, the migration manager will be a multisig operated by the Orbs core team. The Orbs core team’s service as the migration manager is an administrative function, consistent with other administrative functions that the Orbs core team is fulfilling during the early period after the launch of the Orbs network. As with its other administrative functions, the Orbs core team will act in its capacity as migration manager in consultation with the Orbs network’s community. It is anticipated that, at a later stage, when the network and its governance mechanisms are more developed and robust, the migration manager should be controlled directly by the network’s then-applicable governance.
 
 &nbsp;
 ## Contract Specification
@@ -85,6 +90,8 @@ There are two limited administrative privileges used in this contract:
 **Migration manager** that can, in an administrative capacity during the initial period after the launch of the network:
 * Add or remove migration destinations (see below).
 
+* Update the stake change notifier. 
+
 * Update the address of the migration manager.
 
 **Emergency manager** that can, in an administrative capacity during the initial period after the deployment of the contract:
@@ -108,6 +115,14 @@ The Migration process:
 What's most important here is that users have to opt-in to the migration process and it is never forced upon them. The migration manager can only affect which contracts are proposed, and it should be totally acceptable for users to decide to reject them all and either stick to the existing staking contract or to `unstake()` and quit.
 
 Note that the function `acceptMigration()` may also be used to stake on behalf of a different user - one user calls the function and another user is accredited for the stake. The function is named `acceptMigration()` and not `stakeOnBehalf()` to prevent phishing attempts where a user, unintendedly, stakes to another account instead of her own.
+
+&nbsp;
+### Stake Change Notifier
+The staking contract implements a notifier functionality used to notify stake changes and migrations to Orbs election contracts. Any change in an staking owner stake as a result of `stake()`, `unstake()`, `withdraw()`, `withdrawReleasedStakes()`, `distributeRewards()`, `acceptMigration()` is notified. The notification includes the stake owner address, stake change and the new stake amount. The migration of stake by the owner to a new contract is also notified.
+
+The notified contract (`StakeChangeNotifier`) is assumed trusted, and is set by the migration manager. This prevents a scenario where the notified contract reverts a transaction. In case of an unexpected issue in the contract that causes a revert, the migration manager can intervene and change the notifier contract using `setStakeChangeNotifier()`.
+
+When the `StakeChangeNotifier` is set to address 0, no notifications are sent.
 
 &nbsp;
 ### Additional Functionality
