@@ -551,6 +551,7 @@ contract StakingContract is IStakingContract, IMigratableStakingContract {
         Stake storage stakeData = stakes[_stakeOwner];
         res.stakedAmount = stakeData.amount;
         res.withdrawnAmount = stakeData.cooldownAmount;
+        res.stakedAmountDiff = 0;
 
         if (!releasingAllStakes) {
             require(res.withdrawnAmount > 0, "StakingContract::withdraw - no unstaked tokens");
