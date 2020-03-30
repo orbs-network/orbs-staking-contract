@@ -1,10 +1,10 @@
 /**
  * Orbs Staking Smart Contract
  * 
- * IMPORTANT:
+ * CAUTION:
  *   Staking must be done only using the contract interface functions.
- *   Never transfer tokens directly to the contract address.
- *   Tokens transferred directly to the contract cannot be recovered. 
+ *   Do NOT transfer tokens directly to the contract address.
+ *   Tokens transferred directly to the contract address can never be recovered. 
  *
  * Main interface functions:
  *   stake(uint256 _amount) - stakes ORBS tokens on behalf of msg.sender. 
