@@ -4,7 +4,8 @@
  * CAUTION:
  *   Staking must be done only using the contract interface functions.
  *   Do NOT transfer tokens directly to the contract address.
- *   Tokens transferred directly to the contract address CANNOT be recovered. 
+ *   Tokens transferred directly to the contract address are NOT staked 
+ *   and CANNOT be recovered.
  *
  * Main interface functions:
  *   stake(uint256 _amount) - stakes ORBS tokens on behalf of msg.sender. 
