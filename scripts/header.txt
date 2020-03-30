@@ -1,0 +1,23 @@
+/**
+ * Orbs Staking Smart Contract
+ * 
+ * IMPORTANT:
+ *   Staking must be done only using the contract interface functions.
+ *   Never transfer tokens directly to the contract address.
+ *   Tokens transferred directly to the contract cannot be recovered. 
+ *
+ * Main interface functions:
+ *   stake(uint256 _amount) - stakes ORBS tokens on behalf of msg.sender. 
+ *   Assumes that the user has already approved at least the required amount 
+ *   using ERC20 approve.
+ * 
+ *   unstake(uint256 _amount) - Unstakes ORBS tokens from msg.sender. 
+ *   If successful, this will start the cooldown period, after which
+ *   sg.sender would be able to withdraw all of his tokens.
+ * 
+ *   withdraw() - requests to withdraw all of the ORBS tokens of 
+ *   msg.sender that completed the cooldown period.
+ * 
+ * source: https://github.com/orbs-network/orbs-staking-contract
+ *
+**/
