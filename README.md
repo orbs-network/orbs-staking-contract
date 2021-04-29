@@ -14,7 +14,7 @@ The rest of the [Orbs PoS contract ecosystem](https://github.com/orbs-network/or
 In February-March 2020, Orbs received security audits from SmartDEC and Bok Consulting Pty Ltd.
 
 - [SmartDec](Orbs_Staking_SmartDec.pdf)
-- [BokkyPooBah](https://github.com/bokkypoobah/OrbsStakingContractAudit/tree/master/audit)
+- [Bok Consulting Pty](https://github.com/bokkypoobah/OrbsStakingContractAudit/tree/master/audit)
 
 ## Build
 
