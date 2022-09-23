@@ -6,6 +6,11 @@ The Orbs staking contract is a very lean and concise Ethereum contract with a si
 
 The rest of the [Orbs PoS contract ecosystem](https://github.com/orbs-network/orbs-ethereum-contracts-v2/) (about 16 more Ethereum contracts involving complex actions from elections to rewards) depends on this contract by reading information from it.
 
+## Official contract instances
+
+* Ethereum staking contract: [0x01D59Af68E2dcb44e04C50e05F62E7043F2656C3](https://etherscan.io/address/0x01d59af68e2dcb44e04c50e05f62e7043f2656c3)
+* Polygon staking contract: [0xeeae6791f684117b7028b48cb5dd21186df80b9c](https://polygonscan.com/address/0xeeae6791f684117b7028b48cb5dd21186df80b9c)
+
 ## Specification
 
 [High-level specification](docs/CONTRACT.md)
